@@ -46,6 +46,7 @@ $(GOBUILDDIR):
 update-vendor:
 	@rm -Rf $(VENDORDIR)
 	@pulsar go vendor -V $(VENDORDIR) \
+		github.com/arangodb-helper/go-certificates \
 		github.com/dchest/uniuri \
 		github.com/pkg/errors \
 		github.com/rs/zerolog \

@@ -35,7 +35,7 @@ func (s *sshClient) EnsureDirectoryOf(log zerolog.Logger, filePath string, perm 
 // EnsureDirectory checks if a directory with given path exists and if not creates it.
 // If such a path does exist, it checks if it is a directory, if not an error is returned.
 func (s *sshClient) EnsureDirectory(log zerolog.Logger, dirPath string, perm os.FileMode) error {
-	if _, err := s.Run(log, fmt.Sprintf("sh -c \"sudo mkdir -p %s && chmod 0%o %s\"", dirPath, perm, dirPath), "", true); err != nil {
+	if _, err := s.Run(log, fmt.Sprintf("sh -c \"sudo mkdir -p %s && sudo chmod 0%o %s\"", dirPath, perm, dirPath), "", true); err != nil {
 		return maskAny(err)
 	}
 	return nil
@@ -49,6 +49,9 @@ func (s *sshClient) UpdateFile(log zerolog.Logger, filePath string, content []by
 		return maskAny(err)
 	}
 	if _, err := s.Run(log, fmt.Sprintf("sudo tee %s", filePath), string(content), true); err != nil {
+		return maskAny(err)
+	}
+	if _, err := s.Run(log, fmt.Sprintf("sudo chmod 0%o %s", perm, filePath), "", true); err != nil {
 		return maskAny(err)
 	}
 	return nil

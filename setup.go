@@ -42,7 +42,6 @@ func init() {
 	cmdSetup.Flags().StringVar(&setupFlags.Etcd.ClusterState, "etcd-cluster-state", "", "State of the ETCD cluster new|existing")
 	cmdSetup.Flags().StringSliceVar(&setupFlags.Etcd.Members, "etcd-members", nil, "IP addresses (or hostnames) of ETCD members")
 	// Kubernetes
-	cmdSetup.Flags().BoolVar(&setupFlags.Kubernetes.Enabled, "k8s-enabled", true, "If set, kubernetes will be installed")
 	cmdSetup.Flags().StringVar(&setupFlags.Kubernetes.APIDNSName, "k8s-api-dns-name", defaultKubernetesAPIDNSName(), "Alternate name of the Kubernetes API server")
 	cmdSetup.Flags().StringVar(&setupFlags.Kubernetes.Metadata, "k8s-metadata", "", "Metadata list for kubelet")
 

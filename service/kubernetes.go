@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pulcy.
+// Copyright (c) 2018 Pulcy.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,8 +23,6 @@ import (
 
 // K8s config
 type Kubernetes struct {
-	Enabled               bool
-	KubernetesMasterImage string
 	APIServerPort         int
 	ServiceClusterIPRange string
 	ClusterDNS            string // IP address of DNS server
@@ -34,7 +32,6 @@ type Kubernetes struct {
 }
 
 const (
-	defaultKubernetesMasterImage = "pulcy/k8s-master:0.1.5"
 	defaultServiceClusterIPRange = "10.71.0.0/16"
 	defaultAPIServerPort         = 6443
 	defaultClusterDNS            = "10.71.0.10"
@@ -48,9 +45,6 @@ const (
 
 // setupDefaults fills given flags with default value
 func (flags *Kubernetes) setupDefaults(log zerolog.Logger) error {
-	if flags.KubernetesMasterImage == "" {
-		flags.KubernetesMasterImage = defaultKubernetesMasterImage
-	}
 	if flags.APIServerPort == 0 {
 		flags.APIServerPort = defaultAPIServerPort
 	}
@@ -79,9 +73,4 @@ func (flags *Kubernetes) setupDefaults(log zerolog.Logger) error {
 		}
 	}
 	return nil
-}
-
-// IsEnabled returns true if kubernetes should be installed on the cluster.
-func (flags *Kubernetes) IsEnabled() bool {
-	return flags.Enabled
 }

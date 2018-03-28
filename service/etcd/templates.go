@@ -26,20 +26,20 @@ namespace: kube-system
 spec:
 containers:
 - command:
-	- etcd --name ${PEER_NAME} \
-	- --data-dir /var/lib/etcd \
+	- etcd --name {{.PeerName}} \
+	- --data-dir {{.DataDir}} \
 	- --listen-client-urls https://${PRIVATE_IP}:2379 \
 	- --advertise-client-urls https://${PRIVATE_IP}:2379 \
 	- --listen-peer-urls https://${PRIVATE_IP}:2380 \
 	- --initial-advertise-peer-urls https://${PRIVATE_IP}:2380 \
-	- --cert-file=/certs/server.pem \
-	- --key-file=/certs/server-key.pem \
+	- --cert-file={{.ClientCertFile}} \
+	- --key-file={{.ClientKeyFile}} \
 	- --client-cert-auth \
-	- --trusted-ca-file=/certs/ca.pem \
-	- --peer-cert-file=/certs/peer.pem \
-	- --peer-key-file=/certs/peer-key.pem \
+	- --trusted-ca-file={{.ClientCAFile}} \
+	- --peer-cert-file={{.PeerCertFile}} \
+	- --peer-key-file={{.PeerKeyFile}} \
 	- --peer-client-cert-auth \
-	- --peer-trusted-ca-file=/certs/ca.pem \
+	- --peer-trusted-ca-file={{.PeerCAFile}} \
 	- --initial-cluster {{.InitialCluster}} \
 	- --initial-cluster-token {{.InitialClusterToken}} \
 	- --initial-cluster-state {{.ClusterState}}
@@ -61,23 +61,19 @@ containers:
 	valueFrom:
 		fieldRef:
 		fieldPath: status.podIP
-	- name: PEER_NAME
-	valueFrom:
-		fieldRef:
-		fieldPath: metadata.name
 	volumeMounts:
-	- mountPath: /var/lib/etcd
+	- mountPath: {{.DataDir}}
 	name: etcd
-	- mountPath: /certs
+	- mountPath: {{.CertificatesDir}}
 	name: certs
 hostNetwork: true
 volumes:
 - hostPath:
-	path: /var/lib/etcd
+	path: {{.DataDir}}
 	type: DirectoryOrCreate
 	name: etcd
 - hostPath:
-	path: /etc/kubernetes/pki/etcd
+	path: {{.CertificatesDir}}
 	name: certs
 `
 )

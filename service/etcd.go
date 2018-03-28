@@ -30,21 +30,39 @@ const (
 	defaultEtcdPeerPort   = 2380
 )
 
-// CreateClientEndpoints returns the client URLs to reach an ETCD servers.
-func (flags Etcd) CreateClientEndpoints() string {
-	return flags.createEndpoints(defaultEtcdClientPort)
+// ContainsHost returns true when the given address is an entry in
+// the ETCD members list.
+func (flags Etcd) ContainsHost(addr string) bool {
+	for _, x := range flags.Members {
+		if x == addr {
+			return true
+		}
+	}
+	return false
 }
 
-// CreatePeerEndpoints returns the peer URLs to reach an ETCD servers.
-func (flags Etcd) CreatePeerEndpoints() string {
-	return flags.createEndpoints(defaultEtcdPeerPort)
+// CreateClientEndpoints returns the client URLs to reach an ETCD servers.
+func (flags Etcd) CreateClientEndpoints() string {
+	return flags.createEndpoints(defaultEtcdClientPort, nil)
+}
+
+// CreateInitialCluster returns the peer URLs to reach an ETCD servers
+// in the format accepted by --initial-cluster
+func (flags Etcd) CreateInitialCluster() string {
+	return flags.createEndpoints(defaultEtcdPeerPort, func(m string) string {
+		return m + "="
+	})
 }
 
 // createEndpoints returns the URLs to reach an ETCD servers at the given port.
-func (flags Etcd) createEndpoints(port int) string {
+func (flags Etcd) createEndpoints(port int, prefixBuilder func(string) string) string {
 	endpoints := make([]string, len(flags.Members))
 	for i, m := range flags.Members {
-		endpoints[i] = fmt.Sprintf("https://%s:%d", m, port)
+		prefix := ""
+		if prefixBuilder != nil {
+			prefix = prefixBuilder(m)
+		}
+		endpoints[i] = fmt.Sprintf("%shttps://%s:%d", prefix, m, port)
 	}
 	return strings.Join(endpoints, ",")
 }
