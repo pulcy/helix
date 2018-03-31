@@ -17,6 +17,8 @@ package service
 import (
 	"fmt"
 	"strings"
+
+	"github.com/rs/zerolog"
 )
 
 // ETCD
@@ -29,6 +31,14 @@ const (
 	defaultEtcdClientPort = 2379
 	defaultEtcdPeerPort   = 2380
 )
+
+// setupDefaults fills given flags with default value
+func (flags *Etcd) setupDefaults(log zerolog.Logger) error {
+	if err := resolveDNSNames(flags.Members); err != nil {
+		return maskAny(err)
+	}
+	return nil
+}
 
 // ContainsHost returns true when the given address is an entry in
 // the ETCD members list.

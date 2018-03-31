@@ -54,8 +54,14 @@ type ServiceFlags struct {
 
 // SetupDefaults fills given flags with default value
 func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
+	if err := resolveDNSNames(flags.AllMembers); err != nil {
+		return maskAny(err)
+	}
 	if flags.Architecture == "" {
 		flags.Architecture = "amd64"
+	}
+	if err := flags.Etcd.setupDefaults(log); err != nil {
+		return maskAny(err)
 	}
 	if err := flags.Kubernetes.setupDefaults(log); err != nil {
 		return maskAny(err)
