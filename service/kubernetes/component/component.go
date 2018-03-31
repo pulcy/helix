@@ -15,6 +15,7 @@
 package component
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -40,6 +41,11 @@ const (
 // Component is a helper for a kubernetes component
 type Component struct {
 	Name string
+}
+
+// CertRootDir returns the root of the certificate directory for all components.
+func (c Component) CertRootDir() string {
+	return certsRootDir
 }
 
 // CertDir returns the certificate directory for this component.
@@ -78,7 +84,7 @@ func (c Component) CreateKubeConfig(client util.SSHClient, deps service.ServiceD
 		ClientCertPath string
 		ClientKeyPath  string
 	}{
-		Server:         flags.Etcd.Members[0],
+		Server:         fmt.Sprintf("https://%s:6443", flags.ControlPlane.Members[0]),
 		ContextName:    c.Name,
 		UserName:       c.Name,
 		CAPath:         c.CAPath(),

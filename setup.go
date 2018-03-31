@@ -21,6 +21,7 @@ import (
 
 	"github.com/pulcy/helix/service"
 	"github.com/pulcy/helix/service/etcd"
+	"github.com/pulcy/helix/service/kubernetes/apiserver"
 	"github.com/pulcy/helix/service/kubernetes/kubelet"
 )
 
@@ -35,12 +36,13 @@ var (
 func init() {
 	// General
 	cmdSetup.Flags().BoolVar(&setupFlags.DryRun, "dry-run", true, "If set, no changes will be made")
-	cmdSetup.Flags().StringSliceVar(&setupFlags.AllMembers, "members", nil, "IP addresses (or hostnames) of machines")
+	cmdSetup.Flags().StringSliceVar(&setupFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
 	cmdSetup.Flags().StringVar(&setupFlags.Architecture, "arch", "amd64", "Architecture of the machines")
 	cmdSetup.Flags().StringVar(&setupFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
+	// Control plane
+	cmdSetup.Flags().StringSliceVar(&setupFlags.ControlPlane.Members, "control-plane-members", nil, "IP addresses (or hostnames) of control-plane members")
 	// ETCD
 	cmdSetup.Flags().StringVar(&setupFlags.Etcd.ClusterState, "etcd-cluster-state", "", "State of the ETCD cluster new|existing")
-	cmdSetup.Flags().StringSliceVar(&setupFlags.Etcd.Members, "etcd-members", nil, "IP addresses (or hostnames) of ETCD members")
 	// Kubernetes
 	cmdSetup.Flags().StringVar(&setupFlags.Kubernetes.APIDNSName, "k8s-api-dns-name", defaultKubernetesAPIDNSName(), "Alternate name of the Kubernetes API server")
 	cmdSetup.Flags().StringVar(&setupFlags.Kubernetes.Metadata, "k8s-metadata", "", "Metadata list for kubelet")
@@ -55,8 +57,8 @@ func runSetup(cmd *cobra.Command, args []string) {
 		Exitf("SetupDefaults failed: %#v\n", err)
 	}
 
-	assertArgIsSet(strings.Join(setupFlags.AllMembers, ","), "--members")
-	assertArgIsSet(strings.Join(setupFlags.Etcd.Members, ","), "--etcd-members")
+	assertArgIsSet(strings.Join(setupFlags.Members, ","), "--members")
+	assertArgIsSet(strings.Join(setupFlags.ControlPlane.Members, ","), "--control-plane-members")
 
 	deps := service.ServiceDependencies{
 		Logger: cliLog,
@@ -67,7 +69,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 		// The order of entries is relevant!
 		kubelet.NewService(),
 		etcd.NewService(),
-		//		kubernetes.NewService(),
+		apiserver.NewService(),
 	}
 
 	// Go for it

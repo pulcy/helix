@@ -31,11 +31,11 @@ var (
 
 const (
 	manifestPath       = "/etc/kubernetes/manifests/etcd.yaml"
-	certsDir           = "/etc/kubernetes/pki/etcd"
+	CertsDir           = "/etc/kubernetes/pki/etcd"
 	dataDir            = "/var/lib/etcd"
-	clientCertFileName = "client.crt"
-	clientKeyFileName  = "client.key"
-	clientCAFileName   = "ca.crt"
+	ClientCertFileName = "client.crt"
+	ClientKeyFileName  = "client.key"
+	ClientCAFileName   = "ca.crt"
 	peerCertFileName   = "peer.crt"
 	peerKeyFileName    = "peer.key"
 	peerCAFileName     = "peer-ca.crt"
@@ -77,7 +77,7 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
 
 	// Setup ETCD on this host?
-	if !flags.Etcd.ContainsHost(client.GetHost()) {
+	if !flags.ControlPlane.ContainsHost(client.GetHost()) {
 		log.Info().Msg("No ETCD on this machine")
 		return nil
 	}
@@ -151,16 +151,16 @@ func (t *etcdService) createEtcdConfig(client util.SSHClient, deps service.Servi
 		PeerName:            client.GetHost(),
 		PodName:             "etcd-" + client.GetHost(),
 		ClusterState:        flags.Etcd.ClusterState,
-		InitialCluster:      flags.Etcd.CreateInitialCluster(),
+		InitialCluster:      flags.Etcd.CreateInitialCluster(flags.ControlPlane),
 		InitialClusterToken: t.initialClusterToken,
-		CertificatesDir:     certsDir,
+		CertificatesDir:     CertsDir,
 		DataDir:             dataDir,
-		ClientCertFile:      filepath.Join(certsDir, clientCertFileName),
-		ClientKeyFile:       filepath.Join(certsDir, clientKeyFileName),
-		ClientCAFile:        filepath.Join(certsDir, clientCAFileName),
-		PeerCertFile:        filepath.Join(certsDir, peerCertFileName),
-		PeerKeyFile:         filepath.Join(certsDir, peerKeyFileName),
-		PeerCAFile:          filepath.Join(certsDir, peerCAFileName),
+		ClientCertFile:      filepath.Join(CertsDir, ClientCertFileName),
+		ClientKeyFile:       filepath.Join(CertsDir, ClientKeyFileName),
+		ClientCAFile:        filepath.Join(CertsDir, ClientCAFileName),
+		PeerCertFile:        filepath.Join(CertsDir, peerCertFileName),
+		PeerKeyFile:         filepath.Join(CertsDir, peerKeyFileName),
+		PeerCAFile:          filepath.Join(CertsDir, peerCAFileName),
 	}
 	if result.ClusterState == "" {
 		result.ClusterState = "new"

@@ -15,6 +15,7 @@
 package service
 
 import (
+	"sort"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -35,15 +36,18 @@ type ServiceDependencies struct {
 
 type ServiceFlags struct {
 	// General
-	DryRun     bool
-	AllMembers []string // IP/hostname of all machines
-	SSH        struct {
+	DryRun  bool
+	Members []string // IP/hostname of all machines (no need to include control-plane members)
+	SSH     struct {
 		User string
 	}
 	Architecture string
 
 	// Docker images
 	Images Images
+
+	// Control plane
+	ControlPlane ControlPlane
 
 	// ETCD
 	Etcd Etcd
@@ -54,11 +58,14 @@ type ServiceFlags struct {
 
 // SetupDefaults fills given flags with default value
 func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
-	if err := resolveDNSNames(flags.AllMembers); err != nil {
+	if err := resolveDNSNames(flags.Members); err != nil {
 		return maskAny(err)
 	}
 	if flags.Architecture == "" {
 		flags.Architecture = "amd64"
+	}
+	if err := flags.ControlPlane.setupDefaults(log); err != nil {
+		return maskAny(err)
 	}
 	if err := flags.Etcd.setupDefaults(log); err != nil {
 		return maskAny(err)
@@ -70,6 +77,23 @@ func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
 		return maskAny(err)
 	}
 	return nil
+}
+
+// AllMembers returns a list of all members, including control plane members.
+func (flags ServiceFlags) AllMembers() []string {
+	m := make(map[string]struct{})
+	for _, x := range flags.Members {
+		m[x] = struct{}{}
+	}
+	for _, x := range flags.ControlPlane.Members {
+		m[x] = struct{}{}
+	}
+	result := make([]string, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	sort.Strings(result)
+	return result
 }
 
 // Run all prepare & Setup logic of the given services.
@@ -103,7 +127,7 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 	// Setup all services on all machines
 	for _, s := range services {
 		wg := sync.WaitGroup{}
-		errors := make(chan error, len(flags.AllMembers))
+		errors := make(chan error, len(clients))
 		defer close(errors)
 		for _, client := range clients {
 			wg.Add(1)
@@ -129,11 +153,12 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 
 // dialMachines opens connections to all clients.
 func dialMachines(log zerolog.Logger, flags ServiceFlags) ([]util.SSHClient, error) {
-	clients := make([]util.SSHClient, len(flags.AllMembers))
+	allMembers := flags.AllMembers()
+	clients := make([]util.SSHClient, len(allMembers))
 	wg := sync.WaitGroup{}
-	errors := make(chan error, len(flags.AllMembers))
+	errors := make(chan error, len(allMembers))
 	defer close(errors)
-	for i, m := range flags.AllMembers {
+	for i, m := range allMembers {
 		wg.Add(1)
 		go func(i int, m string) {
 			defer wg.Done()

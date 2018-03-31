@@ -67,6 +67,11 @@ func (ca *CA) Cert() string {
 	return ca.caCert
 }
 
+// Key returns the CA private key, as PEM encoded
+func (ca *CA) Key() string {
+	return ca.caKey
+}
+
 // CreateServerCertificate creates a server certificates for the given client.
 // Returns certificate, key, error.
 func (ca *CA) CreateServerCertificate(client SSHClient, includeCAChain bool) (string, string, error) {

@@ -21,10 +21,9 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// ETCD
+// Etcd holds ETCD configuration settings
 type Etcd struct {
-	ClusterState string   // Current state of the ETCD cluster
-	Members      []string // IP addresses/Hostname of ETCD members
+	ClusterState string // Current state of the ETCD cluster
 }
 
 const (
@@ -34,40 +33,26 @@ const (
 
 // setupDefaults fills given flags with default value
 func (flags *Etcd) setupDefaults(log zerolog.Logger) error {
-	if err := resolveDNSNames(flags.Members); err != nil {
-		return maskAny(err)
-	}
 	return nil
 }
 
-// ContainsHost returns true when the given address is an entry in
-// the ETCD members list.
-func (flags Etcd) ContainsHost(addr string) bool {
-	for _, x := range flags.Members {
-		if x == addr {
-			return true
-		}
-	}
-	return false
-}
-
 // CreateClientEndpoints returns the client URLs to reach an ETCD servers.
-func (flags Etcd) CreateClientEndpoints() string {
-	return flags.createEndpoints(defaultEtcdClientPort, nil)
+func (flags Etcd) CreateClientEndpoints(cp ControlPlane) string {
+	return flags.createEndpoints(cp, defaultEtcdClientPort, nil)
 }
 
 // CreateInitialCluster returns the peer URLs to reach an ETCD servers
 // in the format accepted by --initial-cluster
-func (flags Etcd) CreateInitialCluster() string {
-	return flags.createEndpoints(defaultEtcdPeerPort, func(m string) string {
+func (flags Etcd) CreateInitialCluster(cp ControlPlane) string {
+	return flags.createEndpoints(cp, defaultEtcdPeerPort, func(m string) string {
 		return m + "="
 	})
 }
 
 // createEndpoints returns the URLs to reach an ETCD servers at the given port.
-func (flags Etcd) createEndpoints(port int, prefixBuilder func(string) string) string {
-	endpoints := make([]string, len(flags.Members))
-	for i, m := range flags.Members {
+func (flags Etcd) createEndpoints(cp ControlPlane, port int, prefixBuilder func(string) string) string {
+	endpoints := make([]string, len(cp.Members))
+	for i, m := range cp.Members {
 		prefix := ""
 		if prefixBuilder != nil {
 			prefix = prefixBuilder(m)
