@@ -23,7 +23,6 @@ import (
 
 	"github.com/pulcy/helix/service"
 	"github.com/pulcy/helix/util"
-	//"github.com/pulcy/helix/templates"
 )
 
 var (
@@ -54,8 +53,8 @@ func NewService() service.Service {
 
 type etcdService struct {
 	initialClusterToken string
-	clientCA            ca
-	peerCA              ca
+	clientCA            util.CA
+	peerCA              util.CA
 }
 
 func (t *etcdService) Name() string {
@@ -66,11 +65,14 @@ func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.Se
 	log := deps.Logger
 	t.initialClusterToken = uniuri.New()
 	log.Info().Msg("Creating ETCD Client CA")
-	if err := t.clientCA.CreateCA("ETCD Clients", false); err != nil {
+	var err error
+	t.clientCA, err = util.NewCA("ETCD Clients", false)
+	if err != nil {
 		return maskAny(err)
 	}
 	log.Info().Msg("Creating ETCD Peer CA")
-	if err := t.peerCA.CreateCA("ETCD Peers", false); err != nil {
+	t.peerCA, err = util.NewCA("ETCD Peers", false)
+	if err != nil {
 		return maskAny(err)
 	}
 	return nil
@@ -110,7 +112,7 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 	if err := client.UpdateFile(log, cfg.ClientKeyFile, []byte(clientKey), keyFileMode); err != nil {
 		return maskAny(err)
 	}
-	if err := client.UpdateFile(log, cfg.ClientCAFile, []byte(t.clientCA.caCert), certFileMode); err != nil {
+	if err := client.UpdateFile(log, cfg.ClientCAFile, []byte(t.clientCA.Cert()), certFileMode); err != nil {
 		return maskAny(err)
 	}
 	if err := client.UpdateFile(log, cfg.PeerCertFile, []byte(peerCert), certFileMode); err != nil {
@@ -119,7 +121,7 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 	if err := client.UpdateFile(log, cfg.PeerKeyFile, []byte(peerKey), keyFileMode); err != nil {
 		return maskAny(err)
 	}
-	if err := client.UpdateFile(log, cfg.PeerCAFile, []byte(t.peerCA.caCert), certFileMode); err != nil {
+	if err := client.UpdateFile(log, cfg.PeerCAFile, []byte(t.peerCA.Cert()), certFileMode); err != nil {
 		return maskAny(err)
 	}
 

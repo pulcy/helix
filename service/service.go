@@ -29,7 +29,8 @@ type Service interface {
 }
 
 type ServiceDependencies struct {
-	Logger zerolog.Logger
+	Logger       zerolog.Logger
+	KubernetesCA util.CA
 }
 
 type ServiceFlags struct {
@@ -56,10 +57,10 @@ func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
 	if flags.Architecture == "" {
 		flags.Architecture = "amd64"
 	}
-	if err := flags.Images.setupDefaults(log, flags.Architecture); err != nil {
+	if err := flags.Kubernetes.setupDefaults(log); err != nil {
 		return maskAny(err)
 	}
-	if err := flags.Kubernetes.setupDefaults(log); err != nil {
+	if err := flags.Images.setupDefaults(log, flags.Architecture, flags.Kubernetes.Version); err != nil {
 		return maskAny(err)
 	}
 	return nil
@@ -67,6 +68,13 @@ func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
 
 // Run all prepare & Setup logic of the given services.
 func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error {
+	// Create Kubernetes CA
+	var err error
+	deps.KubernetesCA, err = util.NewCA("Kubernetes", false)
+	if err != nil {
+		return maskAny(err)
+	}
+
 	// Prepare all services
 	for _, s := range services {
 		deps.Logger.Info().Msgf("Preparing %s service", s.Name())
@@ -88,11 +96,25 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 
 	// Setup all services on all machines
 	for _, s := range services {
+		wg := sync.WaitGroup{}
+		errors := make(chan error, len(flags.AllMembers))
+		defer close(errors)
 		for _, client := range clients {
-			deps.Logger.Info().Msgf("Setting up %s service on %s", s.Name(), client.GetHost())
-			if err := s.SetupMachine(client, deps, flags); err != nil {
-				return maskAny(err)
-			}
+			wg.Add(1)
+			go func(client util.SSHClient) {
+				defer wg.Done()
+				deps.Logger.Info().Msgf("Setting up %s service on %s", s.Name(), client.GetHost())
+				if err := s.SetupMachine(client, deps, flags); err != nil {
+					errors <- maskAny(err)
+				}
+			}(client)
+		}
+		wg.Wait()
+		select {
+		case err := <-errors:
+			return maskAny(err)
+		default:
+			// Continue
 		}
 	}
 

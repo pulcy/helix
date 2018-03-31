@@ -23,28 +23,29 @@ import (
 
 // K8s config
 type Kubernetes struct {
+	Version               string
 	APIServerPort         int
 	ServiceClusterIPRange string
-	ClusterDNS            string // IP address of DNS server
-	ClusterDomain         string // Name of culster domain
+	ClusterDNS            string   // IP address of DNS server
+	ClusterDomain         string   // Name of culster domain
+	FeatureGates          []string // List of activated feature gates
 	APIDNSName            string
 	Metadata              string
 }
 
 const (
+	defaultKubernetesVersion     = "v1.10.0"
 	defaultServiceClusterIPRange = "10.71.0.0/16"
 	defaultAPIServerPort         = 6443
 	defaultClusterDNS            = "10.71.0.10"
 	defaultClusterDomain         = "cluster.local"
 )
 
-const (
-	kubeletMetadataPath       = "/etc/pulcy/kubelet-metadata"
-	obsoleteFleetMetadataPath = "/etc/pulcy/fleet-metadata"
-)
-
 // setupDefaults fills given flags with default value
 func (flags *Kubernetes) setupDefaults(log zerolog.Logger) error {
+	if flags.Version == "" {
+		flags.Version = defaultKubernetesVersion
+	}
 	if flags.APIServerPort == 0 {
 		flags.APIServerPort = defaultAPIServerPort
 	}

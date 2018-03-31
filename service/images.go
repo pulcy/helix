@@ -22,17 +22,22 @@ import (
 
 // Images holds docker image names
 type Images struct {
-	Etcd string
+	Etcd      string
+	HyperKube string
 }
 
 const (
-	etcdImageTemplate = "gcr.io/google_containers/etcd-%s:3.1.0"
+	etcdImageTemplate      = "gcr.io/google-containers/etcd-%s:3.2.17"
+	hyperKubeImageTemplate = "gcr.io/google-containers/hyperkube-%s:%s"
 )
 
 // setupDefaults fills given flags with default value
-func (flags *Images) setupDefaults(log zerolog.Logger, architecture string) error {
+func (flags *Images) setupDefaults(log zerolog.Logger, architecture, k8sVersion string) error {
 	if flags.Etcd == "" {
 		flags.Etcd = fmt.Sprintf(etcdImageTemplate, architecture)
+	}
+	if flags.HyperKube == "" {
+		flags.HyperKube = fmt.Sprintf(hyperKubeImageTemplate, architecture, k8sVersion)
 	}
 	return nil
 }

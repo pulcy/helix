@@ -21,7 +21,7 @@ import (
 
 	"github.com/pulcy/helix/service"
 	"github.com/pulcy/helix/service/etcd"
-	//	"github.com/pulcy/helix/service/kubernetes"
+	"github.com/pulcy/helix/service/kubernetes/kubelet"
 )
 
 var (
@@ -65,6 +65,7 @@ func runSetup(cmd *cobra.Command, args []string) {
 	// Create services to setup
 	services := []service.Service{
 		// The order of entries is relevant!
+		kubelet.NewService(),
 		etcd.NewService(),
 		//		kubernetes.NewService(),
 	}

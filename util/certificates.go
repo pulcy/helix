@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package etcd
+package util
 
 import (
 	"time"
 
 	certificates "github.com/arangodb-helper/go-certificates"
-	"github.com/pulcy/helix/util"
 )
 
 const (
@@ -26,14 +25,15 @@ const (
 	serverCertValidFor = time.Hour * 24 * 30       // 30 days
 )
 
-type ca struct {
+// CA is a Certificate Authority.
+type CA struct {
 	caCert string
 	caKey  string
 	ca     certificates.CA
 }
 
-// CreateCA initializes the CA structure.
-func (ca *ca) CreateCA(commonName string, clientAuth bool) error {
+// NewCA tries to load a CA from given path, if not found, creates a new one.
+func NewCA(commonName string, clientAuth bool) (CA, error) {
 	opts := certificates.CreateCertificateOptions{
 		CommonName:   commonName,
 		IsCA:         true,
@@ -44,20 +44,27 @@ func (ca *ca) CreateCA(commonName string, clientAuth bool) error {
 	}
 	cert, key, err := certificates.CreateCertificate(opts, nil)
 	if err != nil {
-		return maskAny(err)
+		return CA{}, maskAny(err)
 	}
-	ca.caCert = cert
-	ca.caKey = key
-	ca.ca, err = certificates.LoadCAFromPEM(cert, key)
+	result := CA{
+		caCert: cert,
+		caKey:  key,
+	}
+	result.ca, err = certificates.LoadCAFromPEM(cert, key)
 	if err != nil {
-		return maskAny(err)
+		return CA{}, maskAny(err)
 	}
-	return nil
+	return result, nil
+}
+
+// Cert returns the CA certificate, as PEM encoded
+func (ca *CA) Cert() string {
+	return ca.caCert
 }
 
 // CreateServerCertificate creates a server certificates for the given client.
 // Returns certificate, key, error.
-func (ca *ca) CreateServerCertificate(client util.SSHClient) (string, string, error) {
+func (ca *CA) CreateServerCertificate(client SSHClient) (string, string, error) {
 	host := client.GetHost()
 	opts := certificates.CreateCertificateOptions{
 		CommonName:   host,
@@ -73,5 +80,4 @@ func (ca *ca) CreateServerCertificate(client util.SSHClient) (string, string, er
 		return "", "", maskAny(err)
 	}
 	return cert, key, nil
-
 }
