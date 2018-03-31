@@ -53,8 +53,7 @@ func NewService() service.Service {
 
 type etcdService struct {
 	initialClusterToken string
-	clientCA            util.CA
-	peerCA              util.CA
+	ca                  util.CA
 }
 
 func (t *etcdService) Name() string {
@@ -64,14 +63,9 @@ func (t *etcdService) Name() string {
 func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger
 	t.initialClusterToken = uniuri.New()
-	log.Info().Msg("Creating ETCD Client CA")
+	log.Info().Msg("Creating ETCD CA")
 	var err error
-	t.clientCA, err = util.NewCA("ETCD Clients", false)
-	if err != nil {
-		return maskAny(err)
-	}
-	log.Info().Msg("Creating ETCD Peer CA")
-	t.peerCA, err = util.NewCA("ETCD Peers", false)
+	t.ca, err = util.NewCA("ETCD", false)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -95,11 +89,11 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 
 	// Create certificates
 	log.Info().Msg("Creating ETCD Server Certificates")
-	clientCert, clientKey, err := t.clientCA.CreateServerCertificate(client)
+	clientCert, clientKey, err := t.ca.CreateServerCertificate(client, true)
 	if err != nil {
 		return maskAny(err)
 	}
-	peerCert, peerKey, err := t.clientCA.CreateServerCertificate(client)
+	peerCert, peerKey, err := t.ca.CreateServerCertificate(client, true)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -112,7 +106,7 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 	if err := client.UpdateFile(log, cfg.ClientKeyFile, []byte(clientKey), keyFileMode); err != nil {
 		return maskAny(err)
 	}
-	if err := client.UpdateFile(log, cfg.ClientCAFile, []byte(t.clientCA.Cert()), certFileMode); err != nil {
+	if err := client.UpdateFile(log, cfg.ClientCAFile, []byte(t.ca.Cert()), certFileMode); err != nil {
 		return maskAny(err)
 	}
 	if err := client.UpdateFile(log, cfg.PeerCertFile, []byte(peerCert), certFileMode); err != nil {
@@ -121,7 +115,7 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 	if err := client.UpdateFile(log, cfg.PeerKeyFile, []byte(peerKey), keyFileMode); err != nil {
 		return maskAny(err)
 	}
-	if err := client.UpdateFile(log, cfg.PeerCAFile, []byte(t.peerCA.Cert()), certFileMode); err != nil {
+	if err := client.UpdateFile(log, cfg.PeerCAFile, []byte(t.ca.Cert()), certFileMode); err != nil {
 		return maskAny(err)
 	}
 

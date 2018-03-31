@@ -15,6 +15,7 @@
 package util
 
 import (
+	"crypto/x509/pkix"
 	"time"
 
 	certificates "github.com/arangodb-helper/go-certificates"
@@ -34,8 +35,12 @@ type CA struct {
 
 // NewCA tries to load a CA from given path, if not found, creates a new one.
 func NewCA(commonName string, clientAuth bool) (CA, error) {
+
 	opts := certificates.CreateCertificateOptions{
-		CommonName:   commonName,
+		Subject: &pkix.Name{
+			CommonName:   commonName,
+			Organization: []string{"Helix"},
+		},
 		IsCA:         true,
 		IsClientAuth: clientAuth,
 		ValidFrom:    time.Now(),
@@ -64,10 +69,13 @@ func (ca *CA) Cert() string {
 
 // CreateServerCertificate creates a server certificates for the given client.
 // Returns certificate, key, error.
-func (ca *CA) CreateServerCertificate(client SSHClient) (string, string, error) {
+func (ca *CA) CreateServerCertificate(client SSHClient, includeCAChain bool) (string, string, error) {
 	host := client.GetHost()
 	opts := certificates.CreateCertificateOptions{
-		CommonName:   host,
+		Subject: &pkix.Name{
+			CommonName:   host,
+			Organization: []string{"Helix"},
+		},
 		Hosts:        []string{host},
 		IsCA:         false,
 		IsClientAuth: false,
@@ -78,6 +86,9 @@ func (ca *CA) CreateServerCertificate(client SSHClient) (string, string, error) 
 	cert, key, err := certificates.CreateCertificate(opts, &ca.ca)
 	if err != nil {
 		return "", "", maskAny(err)
+	}
+	if includeCAChain {
+		cert = cert + "\n" + ca.caCert
 	}
 	return cert, key, nil
 }

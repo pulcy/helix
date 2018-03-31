@@ -16,6 +16,7 @@ package service
 
 import (
 	"net"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -23,20 +24,36 @@ import (
 // resolveDNSNames inspects all names/addresses in the given list and resolves
 // everything that is not already an IP address.
 func resolveDNSNames(nameList []string) error {
-	for i, n := range nameList {
-		if net.ParseIP(n) != nil {
-			// Already IP
-			continue
-		}
-		// Try to resolve
-		addrs, err := net.LookupHost(n)
-		if err != nil {
-			return maskAny(errors.Wrapf(err, "Failed to resolve '%s'", n))
-		}
-		if len(addrs) == 0 {
-			return maskAny(errors.Wrapf(err, "Found not addresses for '%s'", n))
-		}
-		nameList[i] = addrs[0]
+	if len(nameList) == 0 {
+		return nil
 	}
-	return nil
+	wg := sync.WaitGroup{}
+	errorsChan := make(chan error, len(nameList))
+	defer close(errorsChan)
+	for i, n := range nameList {
+		wg.Add(1)
+		go func(i int, n string) {
+			defer wg.Done()
+			if net.ParseIP(n) != nil {
+				// Already IP
+				return
+			}
+			// Try to resolve
+			addrs, err := net.LookupHost(n)
+			if err != nil {
+				errorsChan <- maskAny(errors.Wrapf(err, "Failed to resolve '%s'", n))
+			} else if len(addrs) == 0 {
+				errorsChan <- maskAny(errors.Wrapf(err, "Found not addresses for '%s'", n))
+			} else {
+				nameList[i] = addrs[0]
+			}
+		}(i, n)
+	}
+	wg.Wait()
+	select {
+	case err := <-errorsChan:
+		return maskAny(err)
+	default:
+		return nil
+	}
 }

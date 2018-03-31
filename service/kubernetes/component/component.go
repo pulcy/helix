@@ -95,7 +95,7 @@ func (c Component) CreateKubeConfig(client util.SSHClient, deps service.ServiceD
 func (c Component) UploadCertificates(client util.SSHClient, deps service.ServiceDependencies) error {
 	log := deps.Logger
 	log.Info().Msgf("Creating %s TLS Certificates", c.Name)
-	cert, key, err := deps.KubernetesCA.CreateServerCertificate(client)
+	cert, key, err := deps.KubernetesCA.CreateServerCertificate(client, true)
 	if err != nil {
 		return maskAny(err)
 	}
