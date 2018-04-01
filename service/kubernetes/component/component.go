@@ -53,9 +53,24 @@ func (c Component) CertDir() string {
 	return filepath.Join(certsRootDir, c.Name)
 }
 
-// CAPath returns the full path of the CA certificate file for this component.
-func (c Component) CAPath() string {
-	return filepath.Join(c.CertDir(), "ca.crt")
+// CACertPath returns the full path of the CA certificate file for this component.
+func (c Component) CACertPath() string {
+	return filepath.Join(c.CertRootDir(), "ca.crt")
+}
+
+// CAKeyPath returns the full path of the CA private key file for this component.
+func (c Component) CAKeyPath() string {
+	return filepath.Join(c.CertRootDir(), "ca.key")
+}
+
+// AdminCertPath returns the full path of the admin account certificate file for this component.
+func (c Component) AdminCertPath() string {
+	return filepath.Join(c.CertRootDir(), "admin.crt")
+}
+
+// AdminKeyPath returns the full path of the admin account private key file for this component.
+func (c Component) AdminKeyPath() string {
+	return filepath.Join(c.CertRootDir(), "admin.key")
 }
 
 // CertPath returns the full path of the certificate file for this component.
@@ -87,7 +102,7 @@ func (c Component) CreateKubeConfig(client util.SSHClient, deps service.ServiceD
 		Server:         fmt.Sprintf("https://%s:6443", flags.ControlPlane.Members[0]),
 		ContextName:    c.Name,
 		UserName:       c.Name,
-		CAPath:         c.CAPath(),
+		CAPath:         c.CACertPath(),
 		ClientCertPath: c.CertPath(),
 		ClientKeyPath:  c.KeyPath(),
 	}
@@ -97,11 +112,20 @@ func (c Component) CreateKubeConfig(client util.SSHClient, deps service.ServiceD
 	return nil
 }
 
+// RemoveKubeConfig removes the kubeconfig file for this
+// component on the machine indicated by the given client.
+func (c Component) RemoveKubeConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	if err := client.RemoveFile(deps.Logger, c.KubeConfigPath()); err != nil {
+		return maskAny(err)
+	}
+	return nil
+}
+
 // UploadCertificates creates a server certificate for the component and uploads it.
-func (c Component) UploadCertificates(client util.SSHClient, deps service.ServiceDependencies) error {
+func (c Component) UploadCertificates(commonName, orgName string, client util.SSHClient, deps service.ServiceDependencies) error {
 	log := deps.Logger
 	log.Info().Msgf("Creating %s TLS Certificates", c.Name)
-	cert, key, err := deps.KubernetesCA.CreateServerCertificate(client, true)
+	cert, key, err := deps.KubernetesCA.CreateServerCertificate(commonName, orgName, client)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -113,9 +137,17 @@ func (c Component) UploadCertificates(client util.SSHClient, deps service.Servic
 	if err := client.UpdateFile(log, c.KeyPath(), []byte(key), keyFileMode); err != nil {
 		return maskAny(err)
 	}
-	if err := client.UpdateFile(log, c.CAPath(), []byte(deps.KubernetesCA.Cert()), certFileMode); err != nil {
+
+	return nil
+}
+
+// RemoveCertificates removes certificates for the component.
+func (c Component) RemoveCertificates(client util.SSHClient, deps service.ServiceDependencies) error {
+	if err := client.RemoveFile(deps.Logger, c.CertPath()); err != nil {
 		return maskAny(err)
 	}
-
+	if err := client.RemoveFile(deps.Logger, c.KeyPath()); err != nil {
+		return maskAny(err)
+	}
 	return nil
 }

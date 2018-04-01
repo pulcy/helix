@@ -41,13 +41,14 @@ spec:
     - --proxy-client-cert-file={{.ProxyClientCertFile}}
     - --proxy-client-key-file={{.ProxyClientKeyFile}}
     - --requestheader-extra-headers-prefix=X-Remote-Extra-
-    - --requestheader-allowed-names=front-proxy-client
+    - --requestheader-allowed-names=
     - --service-cluster-ip-range=10.96.0.0/12
     - --kubelet-certificate-authority={{ .KubeletCAFile }}
     - --kubelet-client-certificate={{ .KubeletCertFile }}
     - --kubelet-client-key={{ .KubeletKeyFile }}
     - --requestheader-username-headers=X-Remote-User
     - --advertise-address=$(PUBLIC_IP)
+    - --insecure-bind-address=127.0.0.1
     - --admission-control=Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,DefaultTolerationSeconds,NodeRestriction,ResourceQuota
     - --enable-bootstrap-token-auth=true
     - --allow-privileged=true
@@ -71,10 +72,10 @@ spec:
     livenessProbe:
       failureThreshold: 8
       httpGet:
-        host: $(PUBLIC_IP)
+        host: 127.0.0.1
         path: /healthz
-        port: 6443
-        scheme: HTTPS
+        port: 8080
+        scheme: HTTP
       initialDelaySeconds: 15
       timeoutSeconds: 15
     name: kube-apiserver

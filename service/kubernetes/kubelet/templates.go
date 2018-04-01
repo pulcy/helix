@@ -18,12 +18,9 @@ const (
 	kubeletServiceTemplate = `[Unit]
 Description=Kubernetes Kubelet Server
 Requires=docker.service network-online.target
-After=docker.service network-online.target
+After=hyperkube.service docker.service network-online.target
 
 [Service]
-ExecStartPre=/bin/mkdir -p /usr/local/bin
-ExecStartPre=/bin/sh -c "test -f /usr/local/bin/hyperkube-{{ .KubernetesVersion }} || /usr/bin/docker run --rm -v /usr/local/bin:/usr/local/bin {{.Image}} cp /hyperkube /usr/local/bin/hyperkube-{{ .KubernetesVersion }}"
-ExecStartPre=/bin/sh -c "test -e /usr/local/bin/kubelet || ln -sf /usr/local/bin/hyperkube-{{ .KubernetesVersion }} /usr/local/bin/kubectl"
 ExecStartPre=/bin/mkdir -p /opt/log/pods
 ExecStartPre=/bin/mount --bind /var/log/pods /opt/log/pods
 ExecStartPre=/bin/mkdir -p /opt/log/containers

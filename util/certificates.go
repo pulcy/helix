@@ -15,6 +15,7 @@
 package util
 
 import (
+	"crypto/x509"
 	"crypto/x509/pkix"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 const (
 	caValidFor         = time.Hour * 24 * 365 * 10 // 10 years
 	serverCertValidFor = time.Hour * 24 * 30       // 30 days
+	adminCertValidFor  = time.Hour * 24 * 90       // 90 days
 )
 
 // CA is a Certificate Authority.
@@ -34,18 +36,17 @@ type CA struct {
 }
 
 // NewCA tries to load a CA from given path, if not found, creates a new one.
-func NewCA(commonName string, clientAuth bool) (CA, error) {
-
+func NewCA(commonName string) (CA, error) {
 	opts := certificates.CreateCertificateOptions{
 		Subject: &pkix.Name{
 			CommonName:   commonName,
 			Organization: []string{"Helix"},
 		},
-		IsCA:         true,
-		IsClientAuth: clientAuth,
-		ValidFrom:    time.Now(),
-		ValidFor:     caValidFor,
-		ECDSACurve:   "P256",
+		IsCA:        true,
+		ValidFrom:   time.Now(),
+		ValidFor:    caValidFor,
+		ECDSACurve:  "P256",
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 	}
 	cert, key, err := certificates.CreateCertificate(opts, nil)
 	if err != nil {
@@ -72,14 +73,37 @@ func (ca *CA) Key() string {
 	return ca.caKey
 }
 
+// CreateAdminCertificate creates a kubernetes admin certificate.
+// Returns certificate, key, error.
+func (ca *CA) CreateAdminCertificate() (string, string, error) {
+	opts := certificates.CreateCertificateOptions{
+		Subject: &pkix.Name{
+			CommonName:   "admin",
+			Organization: []string{"system:masters"},
+		},
+		IsCA:         false,
+		IsClientAuth: false,
+		ValidFrom:    time.Now(),
+		ValidFor:     adminCertValidFor,
+		ECDSACurve:   "P256",
+		ExtKeyUsage:  []x509.ExtKeyUsage{},
+	}
+	cert, key, err := certificates.CreateCertificate(opts, &ca.ca)
+	if err != nil {
+		return "", "", maskAny(err)
+	}
+	return cert, key, nil
+}
+
 // CreateServerCertificate creates a server certificates for the given client.
 // Returns certificate, key, error.
-func (ca *CA) CreateServerCertificate(client SSHClient, includeCAChain bool) (string, string, error) {
+func (ca *CA) CreateServerCertificate(commonName, orgName string, client SSHClient) (string, string, error) {
 	host := client.GetHost()
 	opts := certificates.CreateCertificateOptions{
 		Subject: &pkix.Name{
-			CommonName:   host,
-			Organization: []string{"Helix"},
+			CommonName:         commonName,
+			Organization:       []string{orgName},
+			OrganizationalUnit: []string{"Helix"},
 		},
 		Hosts:        []string{host},
 		IsCA:         false,
@@ -87,13 +111,11 @@ func (ca *CA) CreateServerCertificate(client SSHClient, includeCAChain bool) (st
 		ValidFrom:    time.Now(),
 		ValidFor:     serverCertValidFor,
 		ECDSACurve:   "P256",
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 	}
 	cert, key, err := certificates.CreateCertificate(opts, &ca.ca)
 	if err != nil {
 		return "", "", maskAny(err)
-	}
-	if includeCAChain {
-		cert = cert + "\n" + ca.caCert
 	}
 	return cert, key, nil
 }

@@ -27,6 +27,7 @@ type Service interface {
 	Name() string
 	Prepare(deps ServiceDependencies, flags ServiceFlags) error
 	SetupMachine(client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
+	ResetMachine(client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
 }
 
 type ServiceDependencies struct {
@@ -100,7 +101,7 @@ func (flags ServiceFlags) AllMembers() []string {
 func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error {
 	// Create Kubernetes CA
 	var err error
-	deps.KubernetesCA, err = util.NewCA("Kubernetes", false)
+	deps.KubernetesCA, err = util.NewCA("Kubernetes")
 	if err != nil {
 		return maskAny(err)
 	}
@@ -135,6 +136,54 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 				defer wg.Done()
 				deps.Logger.Info().Msgf("Setting up %s service on %s", s.Name(), client.GetHost())
 				if err := s.SetupMachine(client, deps, flags); err != nil {
+					errors <- maskAny(err)
+				}
+			}(client)
+		}
+		wg.Wait()
+		select {
+		case err := <-errors:
+			return maskAny(err)
+		default:
+			// Continue
+		}
+	}
+
+	return nil
+}
+
+// Reset all prepare & Setup logic of the given services.
+func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) error {
+	// Prepare all services
+	for _, s := range services {
+		deps.Logger.Info().Msgf("Preparing %s service", s.Name())
+		if err := s.Prepare(deps, flags); err != nil {
+			return maskAny(err)
+		}
+	}
+
+	// Dial machines
+	clients, err := dialMachines(deps.Logger, flags)
+	if err != nil {
+		return maskAny(err)
+	}
+	defer func() {
+		for _, c := range clients {
+			c.Close()
+		}
+	}()
+
+	// Setup all services on all machines
+	for _, s := range services {
+		wg := sync.WaitGroup{}
+		errors := make(chan error, len(clients))
+		defer close(errors)
+		for _, client := range clients {
+			wg.Add(1)
+			go func(client util.SSHClient) {
+				defer wg.Done()
+				deps.Logger.Info().Msgf("Resetting %s service on %s", s.Name(), client.GetHost())
+				if err := s.ResetMachine(client, deps, flags); err != nil {
 					errors <- maskAny(err)
 				}
 			}(client)

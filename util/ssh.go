@@ -42,6 +42,12 @@ type SSHClient interface {
 	// if the content is different, the file is updated.
 	// If the file does not exist, it is created.
 	UpdateFile(log zerolog.Logger, filePath string, content []byte, perm os.FileMode) error
+	// RemoveFile removes the given file.
+	// If no such file exists, the request is ignored.
+	RemoveFile(log zerolog.Logger, filePath string) error
+	// RemoveDirectory removes the given directory with its content.
+	// If no such directory exists, the request is ignored.
+	RemoveDirectory(log zerolog.Logger, dirPath string) error
 	// Render updates the given destinationPath according to the given template and options.
 	Render(log zerolog.Logger, templateData, destinationPath string, options interface{}, destinationFileMode os.FileMode, config ...TemplateConfigurator) error
 }

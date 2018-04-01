@@ -45,7 +45,6 @@ func NewService() service.Service {
 
 type apiserverService struct {
 	component.Component
-	frontProxyCA util.CA
 }
 
 func (t *apiserverService) Name() string {
@@ -53,13 +52,7 @@ func (t *apiserverService) Name() string {
 }
 
 func (t *apiserverService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	t.Component.Name = "kube-apiserver"
-	/*var err error
-	t.frontProxyCA, err = util.NewCA("Kubernetes FrontProxy", true)
-	if err != nil {
-		return maskAny(err)
-	}*/
-	t.frontProxyCA = deps.KubernetesCA
+	t.Component.Name = t.Name()
 	return nil
 }
 
@@ -79,20 +72,14 @@ func (t *apiserverService) SetupMachine(client util.SSHClient, deps service.Serv
 	}
 
 	// Create & Upload certificates
-	if err := t.Component.UploadCertificates(client, deps); err != nil {
+	if err := t.Component.UploadCertificates("kubernetes", "Kubernetes API Server", client, deps); err != nil {
 		return maskAny(err)
 	}
 
 	// Create & Upload front proxy certificates
 	log.Info().Msgf("Uploading %s FrontProxy Certificates", t.Name())
-	proxyCert, proxyKey, err := t.frontProxyCA.CreateServerCertificate(client, true)
+	proxyCert, proxyKey, err := deps.KubernetesCA.CreateServerCertificate("kubernetes", "Kubernetes Front Proxy", client)
 	if err != nil {
-		return maskAny(err)
-	}
-	if err := client.UpdateFile(log, cfg.ProxyClientCAFile, []byte(t.frontProxyCA.Cert()), certFileMode); err != nil {
-		return maskAny(err)
-	}
-	if err := client.UpdateFile(log, cfg.ProxyClientCAKeyFile, []byte(t.frontProxyCA.Key()), keyFileMode); err != nil {
 		return maskAny(err)
 	}
 	if err := client.UpdateFile(log, cfg.ProxyClientCertFile, []byte(proxyCert), certFileMode); err != nil {
@@ -104,7 +91,7 @@ func (t *apiserverService) SetupMachine(client util.SSHClient, deps service.Serv
 
 	// Create & Upload kubelet certificates
 	log.Info().Msgf("Uploading %s Kubelet Certificates", t.Name())
-	kubeletCert, kubeletKey, err := deps.KubernetesCA.CreateServerCertificate(client, true)
+	kubeletCert, kubeletKey, err := deps.KubernetesCA.CreateServerCertificate("kubernetes", "Kubernetes API Server - Kubelet", client)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -129,7 +116,51 @@ func (t *apiserverService) SetupMachine(client util.SSHClient, deps service.Serv
 	return nil
 }
 
-type apiserverConfig struct {
+// ResetMachine removes kube-apiserver from the machine.
+func (t *apiserverService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+
+	cfg, err := t.createConfig(client, deps, flags)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	// Remove  manifest
+	if err := client.RemoveFile(log, manifestPath); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove certificates
+	if err := t.Component.RemoveCertificates(client, deps); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove front proxy certificates
+	log.Info().Msgf("Uploading %s FrontProxy Certificates", t.Name())
+	if err := client.RemoveFile(log, cfg.ProxyClientCertFile); err != nil {
+		return maskAny(err)
+	}
+	if err := client.RemoveFile(log, cfg.ProxyClientKeyFile); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove kubelet certificates
+	if err := client.RemoveFile(log, cfg.KubeletCertFile); err != nil {
+		return maskAny(err)
+	}
+	if err := client.RemoveFile(log, cfg.KubeletKeyFile); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove kubeconfig
+	if err := t.Component.RemoveKubeConfig(client, deps, flags); err != nil {
+		return maskAny(err)
+	}
+
+	return nil
+}
+
+type config struct {
 	Image                string // HyperKube docker images
 	PodName              string
 	PkiDir               string
@@ -151,9 +182,9 @@ type apiserverConfig struct {
 	ProxyClientCAKeyFile string
 }
 
-func (t *apiserverService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (apiserverConfig, error) {
+func (t *apiserverService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	certDir := t.Component.CertDir()
-	result := apiserverConfig{
+	result := config{
 		Image:                flags.Images.HyperKube,
 		PodName:              "kube-apiserver-" + client.GetHost(),
 		PkiDir:               t.Component.CertRootDir(),
@@ -165,20 +196,20 @@ func (t *apiserverService) createConfig(client util.SSHClient, deps service.Serv
 		KubeConfigPath:       t.KubeConfigPath(),
 		CertFile:             t.CertPath(),
 		KeyFile:              t.KeyPath(),
-		ClientCAFile:         t.CAPath(),
+		ClientCAFile:         t.CACertPath(),
 		KubeletKeyFile:       filepath.Join(certDir, "kubelet-client.key"),
 		KubeletCertFile:      filepath.Join(certDir, "kubelet-client.crt"),
-		KubeletCAFile:        t.CAPath(),
+		KubeletCAFile:        t.CACertPath(),
 		ProxyClientKeyFile:   filepath.Join(certDir, "front-proxy.key"),
 		ProxyClientCertFile:  filepath.Join(certDir, "front-proxy.crt"),
-		ProxyClientCAFile:    filepath.Join(certDir, "front-proxy-ca.crt"),
-		ProxyClientCAKeyFile: filepath.Join(certDir, "front-proxy-ca.key"),
+		ProxyClientCAFile:    t.CACertPath(),
+		ProxyClientCAKeyFile: t.CAKeyPath(),
 	}
 
 	return result, nil
 }
 
-func createManifest(client util.SSHClient, deps service.ServiceDependencies, opts apiserverConfig) error {
+func createManifest(client util.SSHClient, deps service.ServiceDependencies, opts config) error {
 	deps.Logger.Info().Msgf("Creating manifest %s", manifestPath)
 	if err := client.Render(deps.Logger, apiserverManifestTemplate, manifestPath, opts, manifestFileMode); err != nil {
 		return maskAny(err)

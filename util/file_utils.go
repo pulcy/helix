@@ -41,6 +41,24 @@ func (s *sshClient) EnsureDirectory(log zerolog.Logger, dirPath string, perm os.
 	return nil
 }
 
+// RemoveFile removes the given file.
+// If no such file exists, the request is ignored.
+func (s *sshClient) RemoveFile(log zerolog.Logger, filePath string) error {
+	if _, err := s.Run(log, fmt.Sprintf("sudo rm -f %s", filePath), "", true); err != nil {
+		return maskAny(err)
+	}
+	return nil
+}
+
+// RemoveDirectory removes the given directory with its content.
+// If no such directory exists, the request is ignored.
+func (s *sshClient) RemoveDirectory(log zerolog.Logger, dirPath string) error {
+	if _, err := s.Run(log, fmt.Sprintf("sudo rm -rf %s", dirPath), "", true); err != nil {
+		return maskAny(err)
+	}
+	return nil
+}
+
 // UpdateFile compares the given content with the context of the file at the given filePath and
 // if the content is different, the file is updated.
 // If the file does not exist, it is created.

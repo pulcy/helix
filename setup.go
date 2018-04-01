@@ -22,7 +22,11 @@ import (
 	"github.com/pulcy/helix/service"
 	"github.com/pulcy/helix/service/etcd"
 	"github.com/pulcy/helix/service/kubernetes/apiserver"
+	"github.com/pulcy/helix/service/kubernetes/ca"
+	"github.com/pulcy/helix/service/kubernetes/controllermanager"
+	"github.com/pulcy/helix/service/kubernetes/hyperkube"
 	"github.com/pulcy/helix/service/kubernetes/kubelet"
+	"github.com/pulcy/helix/service/kubernetes/scheduler"
 )
 
 var (
@@ -30,10 +34,28 @@ var (
 		Use: "setup",
 		Run: runSetup,
 	}
+	cmdReset = &cobra.Command{
+		Use: "reset",
+		Run: runReset,
+	}
 	setupFlags = service.ServiceFlags{}
+	resetFlags = service.ServiceFlags{}
+
+	// Create services to setup
+	services = []service.Service{
+		// The order of entries is relevant!
+		hyperkube.NewService(),
+		ca.NewService(),
+		kubelet.NewService(),
+		etcd.NewService(),
+		apiserver.NewService(),
+		scheduler.NewService(),
+		controllermanager.NewService(),
+	}
 )
 
 func init() {
+	// Setup
 	// General
 	cmdSetup.Flags().BoolVar(&setupFlags.DryRun, "dry-run", true, "If set, no changes will be made")
 	cmdSetup.Flags().StringSliceVar(&setupFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
@@ -47,7 +69,14 @@ func init() {
 	cmdSetup.Flags().StringVar(&setupFlags.Kubernetes.APIDNSName, "k8s-api-dns-name", defaultKubernetesAPIDNSName(), "Alternate name of the Kubernetes API server")
 	cmdSetup.Flags().StringVar(&setupFlags.Kubernetes.Metadata, "k8s-metadata", "", "Metadata list for kubelet")
 
+	// Reset
+	// General
+	cmdReset.Flags().BoolVar(&resetFlags.DryRun, "dry-run", true, "If set, no changes will be made")
+	cmdReset.Flags().StringSliceVar(&resetFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
+	cmdReset.Flags().StringVar(&resetFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
+
 	cmdMain.AddCommand(cmdSetup)
+	cmdMain.AddCommand(cmdReset)
 }
 
 func runSetup(cmd *cobra.Command, args []string) {
@@ -64,17 +93,34 @@ func runSetup(cmd *cobra.Command, args []string) {
 		Logger: cliLog,
 	}
 
-	// Create services to setup
-	services := []service.Service{
-		// The order of entries is relevant!
-		kubelet.NewService(),
-		etcd.NewService(),
-		apiserver.NewService(),
-	}
-
 	// Go for it
 	if err := service.Run(deps, setupFlags, services); err != nil {
 		Exitf("Setup failed: %#v\n", err)
+	}
+	cliLog.Info().Msg("Done")
+}
+
+func runReset(cmd *cobra.Command, args []string) {
+	showVersion(cmd, args)
+
+	if err := resetFlags.SetupDefaults(cliLog); err != nil {
+		Exitf("SetupDefaults failed: %#v\n", err)
+	}
+
+	assertArgIsSet(strings.Join(resetFlags.Members, ","), "--members")
+
+	deps := service.ServiceDependencies{
+		Logger: cliLog,
+	}
+
+	revServices := make([]service.Service, len(services))
+	for i, s := range services {
+		revServices[len(services)-(1+i)] = s
+	}
+
+	// Go for it
+	if err := service.Reset(deps, resetFlags, revServices); err != nil {
+		Exitf("Reset failed: %#v\n", err)
 	}
 	cliLog.Info().Msg("Done")
 }

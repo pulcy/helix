@@ -34,8 +34,6 @@ const (
 	servicePath = "/etc/systemd/system/" + serviceName + ".service"
 
 	serviceFileMode = os.FileMode(0644)
-	certFileMode    = os.FileMode(0644)
-	keyFileMode     = os.FileMode(0600)
 )
 
 func NewService() service.Service {
@@ -51,7 +49,7 @@ func (t *kubeletService) Name() string {
 }
 
 func (t *kubeletService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	t.Component.Name = "kubelet"
+	t.Component.Name = t.Name()
 	return nil
 }
 
@@ -64,7 +62,7 @@ func (t *kubeletService) SetupMachine(client util.SSHClient, deps service.Servic
 	}
 
 	// Create & Upload certificates
-	if err := t.Component.UploadCertificates(client, deps); err != nil {
+	if err := t.Component.UploadCertificates("system:node:"+client.GetHost(), "system:nodes", client, deps); err != nil {
 		return maskAny(err)
 	}
 
@@ -93,8 +91,37 @@ func (t *kubeletService) SetupMachine(client util.SSHClient, deps service.Servic
 	return nil
 }
 
-type kubeletConfig struct {
-	Image             string // HyperKube docker images
+// ResetMachine removes kubelet from the machine.
+func (t *kubeletService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+
+	// Stop service
+	if _, err := client.Run(log, "sudo systemctl stop "+serviceName, "", true); err != nil {
+		log.Warn().Err(err).Msg("Failed to stop kubelet service")
+	}
+	if _, err := client.Run(log, "sudo systemctl disable "+serviceName, "", true); err != nil {
+		log.Warn().Err(err).Msg("Failed to disable kubelet service")
+	}
+
+	// Remove service
+	if err := client.RemoveFile(log, servicePath); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove certificates
+	if err := t.Component.RemoveCertificates(client, deps); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove kubeconfig
+	if err := t.Component.RemoveKubeConfig(client, deps, flags); err != nil {
+		return maskAny(err)
+	}
+
+	return nil
+}
+
+type config struct {
 	KubernetesVersion string // Version number of kubernetes
 	ClusterDNS        string // Comma-separated list of DNS server IP address.
 	ClusterDomain     string // Domain for this cluster.
@@ -106,9 +133,8 @@ type kubeletConfig struct {
 	ClientCAPath      string // Path of --client-ca-file
 }
 
-func (t *kubeletService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (kubeletConfig, error) {
-	result := kubeletConfig{
-		Image:             flags.Images.HyperKube,
+func (t *kubeletService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
+	result := config{
 		KubernetesVersion: flags.Kubernetes.Version,
 		ClusterDNS:        flags.Kubernetes.ClusterDNS,
 		ClusterDomain:     flags.Kubernetes.ClusterDomain,
@@ -117,13 +143,13 @@ func (t *kubeletService) createConfig(client util.SSHClient, deps service.Servic
 		NodeLabels:        "",
 		CertPath:          t.CertPath(),
 		KeyPath:           t.KeyPath(),
-		ClientCAPath:      t.CAPath(),
+		ClientCAPath:      t.CACertPath(),
 	}
 
 	return result, nil
 }
 
-func createService(client util.SSHClient, deps service.ServiceDependencies, opts kubeletConfig) error {
+func createService(client util.SSHClient, deps service.ServiceDependencies, opts config) error {
 	deps.Logger.Info().Msgf("Creating service %s", servicePath)
 	if err := client.Render(deps.Logger, kubeletServiceTemplate, servicePath, opts, serviceFileMode); err != nil {
 		return maskAny(err)

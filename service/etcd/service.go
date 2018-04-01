@@ -65,7 +65,7 @@ func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.Se
 	t.initialClusterToken = uniuri.New()
 	log.Info().Msg("Creating ETCD CA")
 	var err error
-	t.ca, err = util.NewCA("ETCD", false)
+	t.ca, err = util.NewCA("ETCD")
 	if err != nil {
 		return maskAny(err)
 	}
@@ -89,11 +89,11 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 
 	// Create certificates
 	log.Info().Msg("Creating ETCD Server Certificates")
-	clientCert, clientKey, err := t.ca.CreateServerCertificate(client, true)
+	clientCert, clientKey, err := t.ca.CreateServerCertificate(client.GetHost(), "helix", client)
 	if err != nil {
 		return maskAny(err)
 	}
-	peerCert, peerKey, err := t.ca.CreateServerCertificate(client, true)
+	peerCert, peerKey, err := t.ca.CreateServerCertificate(client.GetHost(), "helix", client)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -122,6 +122,43 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 	// Create manifest
 	log.Info().Msg("Creating ETCD Manifest")
 	if err := createManifest(client, deps, cfg); err != nil {
+		return maskAny(err)
+	}
+
+	return nil
+}
+
+// ResetMachine removes ETCD from the machine.
+func (t *etcdService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+
+	cfg, err := t.createEtcdConfig(client, deps, flags)
+	if err != nil {
+		return maskAny(err)
+	}
+
+	// Remove manifest
+	if err := client.RemoveFile(log, manifestPath); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove certificates
+	if err := client.RemoveFile(log, cfg.ClientCertFile); err != nil {
+		return maskAny(err)
+	}
+	if err := client.RemoveFile(log, cfg.ClientKeyFile); err != nil {
+		return maskAny(err)
+	}
+	if err := client.RemoveFile(log, cfg.ClientCAFile); err != nil {
+		return maskAny(err)
+	}
+	if err := client.RemoveFile(log, cfg.PeerCertFile); err != nil {
+		return maskAny(err)
+	}
+	if err := client.RemoveFile(log, cfg.PeerKeyFile); err != nil {
+		return maskAny(err)
+	}
+	if err := client.RemoveFile(log, cfg.PeerCAFile); err != nil {
 		return maskAny(err)
 	}
 

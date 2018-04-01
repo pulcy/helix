@@ -54,6 +54,7 @@ type CreateCertificateOptions struct {
 	IsClientAuth   bool          // Whether this cert can be used for client authentication
 	RSABits        int           // Size of RSA key to generate. Ignored if ECDSACurve is set
 	ECDSACurve     string        // ECDSA curve to use to generate a key. Valid values are P224, P256, P384, P521
+	ExtKeyUsage    []x509.ExtKeyUsage
 }
 
 // CreateCertificate creates a certificate according to the given configuration.
@@ -133,10 +134,14 @@ func CreateCertificate(options CreateCertificateOptions, ca *CA) (string, string
 		template.IsCA = true
 		template.KeyUsage |= x509.KeyUsageCertSign
 	}
-	if options.IsClientAuth {
-		template.ExtKeyUsage = append(template.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
+	if options.ExtKeyUsage != nil {
+		template.ExtKeyUsage = append(template.ExtKeyUsage, options.ExtKeyUsage...)
 	} else {
-		template.ExtKeyUsage = append(template.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
+		if options.IsClientAuth {
+			template.ExtKeyUsage = append(template.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
+		} else {
+			template.ExtKeyUsage = append(template.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
+		}
 	}
 
 	// Create the certificate
