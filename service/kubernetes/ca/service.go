@@ -48,33 +48,35 @@ func (t *caService) Name() string {
 }
 
 func (t *caService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	t.Component.Name = "admin"
 	return nil
 }
 
 // SetupMachine configures the machine to run apiserver.
-func (t *caService) SetupMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *caService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Upload ca.crt
 	if err := client.UpdateFile(log, t.Component.CACertPath(), []byte(deps.KubernetesCA.Cert()), certFileMode); err != nil {
 		return maskAny(err)
 	}
 	// If part of control, plane do a bit more.
-	if flags.ControlPlane.ContainsHost(client.GetHost()) {
+	if node.IsControlPlane {
 		// Upload ca.key
 		if err := client.UpdateFile(log, t.Component.CAKeyPath(), []byte(deps.KubernetesCA.Key()), keyFileMode); err != nil {
 			return maskAny(err)
 		}
 
-		// Create admin.crt, admin.key
-		cert, key, err := deps.KubernetesCA.CreateAdminCertificate()
-		if err != nil {
+		// Upload sa.pub + sa.key
+		if err := client.UpdateFile(log, t.Component.SACertPath(), []byte(deps.ServiceAccount.Cert), certFileMode); err != nil {
 			return maskAny(err)
 		}
-		if err := client.UpdateFile(log, t.Component.AdminCertPath(), []byte(cert), certFileMode); err != nil {
+		if err := client.UpdateFile(log, t.Component.SAKeyPath(), []byte(deps.ServiceAccount.Key), keyFileMode); err != nil {
 			return maskAny(err)
 		}
-		if err := client.UpdateFile(log, t.Component.AdminKeyPath(), []byte(key), keyFileMode); err != nil {
+
+		// Create admin.conf
+		if err := t.Component.CreateKubeConfig("kubernetes-admin", "system:masters", client, deps, flags); err != nil {
 			return maskAny(err)
 		}
 	}
@@ -83,15 +85,11 @@ func (t *caService) SetupMachine(client util.SSHClient, deps service.ServiceDepe
 }
 
 // ResetMachine removes CA certificates from the machine.
-func (t *caService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *caService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Remove cert dir
 	if err := client.RemoveDirectory(log, t.Component.CertDir()); err != nil {
-		return maskAny(err)
-	}
-	// Remove cert root dir
-	if err := client.RemoveDirectory(log, t.Component.CertRootDir()); err != nil {
 		return maskAny(err)
 	}
 	return nil

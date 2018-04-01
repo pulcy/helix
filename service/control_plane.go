@@ -21,23 +21,20 @@ import (
 // ControlPlane configuration
 type ControlPlane struct {
 	Members []string // Hostnames / IP address of all nodes that form the control plane.
+	nodes   []Node
 }
 
 // setupDefaults fills given flags with default value
 func (flags *ControlPlane) setupDefaults(log zerolog.Logger) error {
-	if err := resolveDNSNames(flags.Members); err != nil {
+	nodes, err := CreateNodes(flags.Members, true)
+	if err != nil {
 		return maskAny(err)
 	}
+	flags.nodes = nodes
 	return nil
 }
 
-// ContainsHost returns true when the given address is an entry in
-// the control-plane members list.
-func (flags ControlPlane) ContainsHost(addr string) bool {
-	for _, x := range flags.Members {
-		if x == addr {
-			return true
-		}
-	}
-	return false
+// GetAPIServerAddress returns the IP Address of the apiserver.
+func (flags *ControlPlane) GetAPIServerAddress() string {
+	return flags.nodes[0].Address
 }

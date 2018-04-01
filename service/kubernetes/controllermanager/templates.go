@@ -32,18 +32,18 @@ spec:
     - /hyperkube
     - kube-controller-manager
     - --address=127.0.0.1
-    - --cluster-signing-key-file={{ .ClusterSigningKeyFile }}
-    - --cluster-signing-cert-file={{ .ClusterSigningCertFile }}
-    - --leader-elect=true
-    - --use-service-account-credentials=true
-    - --controllers=*,bootstrapsigner,tokencleaner
-    - --kubeconfig={{ .KubeConfigPath }}
-    - --root-ca-file={{ .RootCAFile }}
-    - --service-account-private-key-file={{ .ServiceAccountKeyFile }}
     - --allocate-node-cidrs=true
     - --cluster-cidr=10.244.0.0/16
-    - --node-cidr-mask-size=24
+    - --cluster-signing-cert-file={{ .ClusterSigningCertFile }}
+    - --cluster-signing-key-file={{ .ClusterSigningKeyFile }}
+    - --controllers=*,bootstrapsigner,tokencleaner
     - --feature-gates={{ .FeatureGates }}
+    - --kubeconfig={{ .KubeConfigPath }}
+    - --leader-elect=true
+    - --node-cidr-mask-size=24
+    - --root-ca-file={{ .RootCAFile }}
+    - --service-account-private-key-file={{ .ServiceAccountKeyFile }}
+    - --use-service-account-credentials=true
     image: {{ .Image }}
     livenessProbe:
       failureThreshold: 8

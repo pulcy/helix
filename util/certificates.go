@@ -28,6 +28,27 @@ const (
 	adminCertValidFor  = time.Hour * 24 * 90       // 90 days
 )
 
+// NewServiceAccountCertificate tries to create a service account certificate pair.
+// Returns cert, key, error
+func NewServiceAccountCertificate() (string, string, error) {
+	opts := certificates.CreateCertificateOptions{
+		Subject: &pkix.Name{
+			CommonName:   "service-accounts",
+			Organization: []string{"Helix"},
+		},
+		IsCA:        false,
+		ValidFrom:   time.Now(),
+		ValidFor:    caValidFor,
+		ECDSACurve:  "P256",
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+	}
+	cert, key, err := certificates.CreateCertificate(opts, nil)
+	if err != nil {
+		return "", "", maskAny(err)
+	}
+	return cert, key, nil
+}
+
 // CA is a Certificate Authority.
 type CA struct {
 	caCert string
@@ -73,45 +94,22 @@ func (ca *CA) Key() string {
 	return ca.caKey
 }
 
-// CreateAdminCertificate creates a kubernetes admin certificate.
-// Returns certificate, key, error.
-func (ca *CA) CreateAdminCertificate() (string, string, error) {
-	opts := certificates.CreateCertificateOptions{
-		Subject: &pkix.Name{
-			CommonName:   "admin",
-			Organization: []string{"system:masters"},
-		},
-		IsCA:         false,
-		IsClientAuth: false,
-		ValidFrom:    time.Now(),
-		ValidFor:     adminCertValidFor,
-		ECDSACurve:   "P256",
-		ExtKeyUsage:  []x509.ExtKeyUsage{},
-	}
-	cert, key, err := certificates.CreateCertificate(opts, &ca.ca)
-	if err != nil {
-		return "", "", maskAny(err)
-	}
-	return cert, key, nil
-}
-
 // CreateServerCertificate creates a server certificates for the given client.
 // Returns certificate, key, error.
-func (ca *CA) CreateServerCertificate(commonName, orgName string, client SSHClient) (string, string, error) {
-	host := client.GetHost()
+func (ca *CA) CreateServerCertificate(commonName, orgName string, client SSHClient, additionalHosts ...string) (string, string, error) {
 	opts := certificates.CreateCertificateOptions{
 		Subject: &pkix.Name{
 			CommonName:         commonName,
 			Organization:       []string{orgName},
 			OrganizationalUnit: []string{"Helix"},
 		},
-		Hosts:        []string{host},
-		IsCA:         false,
-		IsClientAuth: false,
-		ValidFrom:    time.Now(),
-		ValidFor:     serverCertValidFor,
-		ECDSACurve:   "P256",
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		Hosts: append([]string{client.GetAddress(), client.GetHostName()}, additionalHosts...),
+		IsCA:  false,
+		//IsClientAuth: false,
+		ValidFrom:   time.Now(),
+		ValidFor:    serverCertValidFor,
+		ECDSACurve:  "P256",
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
 	}
 	cert, key, err := certificates.CreateCertificate(opts, &ca.ca)
 	if err != nil {

@@ -50,8 +50,8 @@ func (t *hyperkubeService) Prepare(deps service.ServiceDependencies, flags servi
 }
 
 // SetupMachine configures the machine to run download hyperkube.
-func (t *hyperkubeService) SetupMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *hyperkubeService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 	cfg, err := t.createConfig(client, deps, flags)
 	if err != nil {
 		return maskAny(err)
@@ -78,8 +78,8 @@ func (t *hyperkubeService) SetupMachine(client util.SSHClient, deps service.Serv
 }
 
 // ResetMachine removes hyperkube from the machine.
-func (t *hyperkubeService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *hyperkubeService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 	cfg, err := t.createConfig(client, deps, flags)
 	if err != nil {
 		return maskAny(err)

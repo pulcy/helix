@@ -73,27 +73,27 @@ func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.Se
 }
 
 // SetupMachine configures the machine to run ETCD.
-func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *etcdService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup ETCD on this host?
-	if !flags.ControlPlane.ContainsHost(client.GetHost()) {
+	if !node.IsControlPlane {
 		log.Info().Msg("No ETCD on this machine")
 		return nil
 	}
 
-	cfg, err := t.createEtcdConfig(client, deps, flags)
+	cfg, err := t.createEtcdConfig(node, client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
 
 	// Create certificates
 	log.Info().Msg("Creating ETCD Server Certificates")
-	clientCert, clientKey, err := t.ca.CreateServerCertificate(client.GetHost(), "helix", client)
+	clientCert, clientKey, err := t.ca.CreateServerCertificate(node.Name, "helix", client)
 	if err != nil {
 		return maskAny(err)
 	}
-	peerCert, peerKey, err := t.ca.CreateServerCertificate(client.GetHost(), "helix", client)
+	peerCert, peerKey, err := t.ca.CreateServerCertificate(node.Name, "helix", client)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -129,10 +129,10 @@ func (t *etcdService) SetupMachine(client util.SSHClient, deps service.ServiceDe
 }
 
 // ResetMachine removes ETCD from the machine.
-func (t *etcdService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *etcdService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 
-	cfg, err := t.createEtcdConfig(client, deps, flags)
+	cfg, err := t.createEtcdConfig(node, client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -182,11 +182,11 @@ type etcdConfig struct {
 	PeerCAFile          string // Path of --peer-trusted-ca-file
 }
 
-func (t *etcdService) createEtcdConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (etcdConfig, error) {
+func (t *etcdService) createEtcdConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (etcdConfig, error) {
 	result := etcdConfig{
 		Image:               flags.Images.Etcd,
-		PeerName:            client.GetHost(),
-		PodName:             "etcd-" + client.GetHost(),
+		PeerName:            node.Name,
+		PodName:             "etcd-" + node.Name,
 		ClusterState:        flags.Etcd.ClusterState,
 		InitialCluster:      flags.Etcd.CreateInitialCluster(flags.ControlPlane),
 		InitialClusterToken: t.initialClusterToken,

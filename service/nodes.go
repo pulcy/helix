@@ -21,12 +21,20 @@ import (
 	"github.com/pkg/errors"
 )
 
-// resolveDNSNames inspects all names/addresses in the given list and resolves
+// Node holds the name and address of a single cluster member.
+type Node struct {
+	Name           string // Hostname
+	Address        string // IP address
+	IsControlPlane bool
+}
+
+// CreateNodes inspects all names/addresses in the given list and resolves
 // everything that is not already an IP address.
-func resolveDNSNames(nameList []string) error {
+func CreateNodes(nameList []string, isControlPlane bool) ([]Node, error) {
 	if len(nameList) == 0 {
-		return nil
+		return nil, nil
 	}
+	result := make([]Node, len(nameList))
 	wg := sync.WaitGroup{}
 	errorsChan := make(chan error, len(nameList))
 	defer close(errorsChan)
@@ -35,25 +43,34 @@ func resolveDNSNames(nameList []string) error {
 		go func(i int, n string) {
 			defer wg.Done()
 			if net.ParseIP(n) != nil {
-				// Already IP
-				return
-			}
-			// Try to resolve
-			addrs, err := net.LookupHost(n)
-			if err != nil {
-				errorsChan <- maskAny(errors.Wrapf(err, "Failed to resolve '%s'", n))
-			} else if len(addrs) == 0 {
-				errorsChan <- maskAny(errors.Wrapf(err, "Found not addresses for '%s'", n))
+				// Input is an IP address
+				result[i] = Node{
+					Name:           "node-" + n,
+					Address:        n,
+					IsControlPlane: isControlPlane,
+				}
 			} else {
-				nameList[i] = addrs[0]
+				// Try to resolve
+				addrs, err := net.LookupHost(n)
+				if err != nil {
+					errorsChan <- maskAny(errors.Wrapf(err, "Failed to resolve '%s'", n))
+				} else if len(addrs) == 0 {
+					errorsChan <- maskAny(errors.Wrapf(err, "Found not addresses for '%s'", n))
+				} else {
+					result[i] = Node{
+						Name:           n,
+						Address:        addrs[0],
+						IsControlPlane: isControlPlane,
+					}
+				}
 			}
 		}(i, n)
 	}
 	wg.Wait()
 	select {
 	case err := <-errorsChan:
-		return maskAny(err)
+		return nil, maskAny(err)
 	default:
-		return nil
+		return result, nil
 	}
 }

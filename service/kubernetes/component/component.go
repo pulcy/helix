@@ -15,6 +15,7 @@
 package component
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,7 +31,7 @@ var (
 )
 
 const (
-	certsRootDir       = "/etc/kubernetes/pki"
+	certsDir           = "/etc/kubernetes/pki"
 	kubeConfigsRootDir = "/var/lib"
 
 	configFileMode = os.FileMode(0600)
@@ -43,68 +44,67 @@ type Component struct {
 	Name string
 }
 
-// CertRootDir returns the root of the certificate directory for all components.
-func (c Component) CertRootDir() string {
-	return certsRootDir
-}
-
 // CertDir returns the certificate directory for this component.
 func (c Component) CertDir() string {
-	return filepath.Join(certsRootDir, c.Name)
+	return certsDir
 }
 
 // CACertPath returns the full path of the CA certificate file for this component.
 func (c Component) CACertPath() string {
-	return filepath.Join(c.CertRootDir(), "ca.crt")
+	return filepath.Join(c.CertDir(), "ca.crt")
 }
 
 // CAKeyPath returns the full path of the CA private key file for this component.
 func (c Component) CAKeyPath() string {
-	return filepath.Join(c.CertRootDir(), "ca.key")
-}
-
-// AdminCertPath returns the full path of the admin account certificate file for this component.
-func (c Component) AdminCertPath() string {
-	return filepath.Join(c.CertRootDir(), "admin.crt")
-}
-
-// AdminKeyPath returns the full path of the admin account private key file for this component.
-func (c Component) AdminKeyPath() string {
-	return filepath.Join(c.CertRootDir(), "admin.key")
+	return filepath.Join(c.CertDir(), "ca.key")
 }
 
 // CertPath returns the full path of the certificate file for this component.
 func (c Component) CertPath() string {
-	return filepath.Join(c.CertDir(), "cert.crt")
+	return filepath.Join(c.CertDir(), c.Name+".crt")
 }
 
 // KeyPath returns the full path of the (private) key file for this component.
 func (c Component) KeyPath() string {
-	return filepath.Join(c.CertDir(), "cert.key")
+	return filepath.Join(c.CertDir(), c.Name+".key")
+}
+
+// SACertPath returns the full path of the service account certificate file.
+func (c Component) SACertPath() string {
+	return filepath.Join(c.CertDir(), "sa.pub")
+}
+
+// SAKeyPath returns the full path of the service account private key file.
+func (c Component) SAKeyPath() string {
+	return filepath.Join(c.CertDir(), "sa.key")
 }
 
 // KubeConfigPath returns the full path of the kubeconfig file for this component.
 func (c Component) KubeConfigPath() string {
-	return filepath.Join(kubeConfigsRootDir, c.Name, "kubeconfig")
+	return filepath.Join(kubeConfigsRootDir, c.Name+".conf")
 }
 
 // CreateKubeConfig renders and uploads a kubeconfig file for this
 // component on the machine indicated by the given client.
-func (c Component) CreateKubeConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (c Component) CreateKubeConfig(commonName, orgName string, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	cert, key, err := deps.KubernetesCA.CreateServerCertificate(commonName, orgName, client)
+	if err != nil {
+		return maskAny(err)
+	}
 	opts := struct {
 		Server         string
 		ContextName    string
 		UserName       string
-		CAPath         string
-		ClientCertPath string
-		ClientKeyPath  string
+		CAData         string
+		ClientCertData string
+		ClientKeyData  string
 	}{
-		Server:         fmt.Sprintf("https://%s:6443", flags.ControlPlane.Members[0]),
+		Server:         fmt.Sprintf("https://%s:6443", flags.ControlPlane.GetAPIServerAddress()),
 		ContextName:    c.Name,
 		UserName:       c.Name,
-		CAPath:         c.CACertPath(),
-		ClientCertPath: c.CertPath(),
-		ClientKeyPath:  c.KeyPath(),
+		CAData:         base64.StdEncoding.EncodeToString([]byte(deps.KubernetesCA.Cert())),
+		ClientCertData: base64.StdEncoding.EncodeToString([]byte(cert)),
+		ClientKeyData:  base64.StdEncoding.EncodeToString([]byte(key)),
 	}
 	if err := client.Render(deps.Logger, kubeConfigTemplate, c.KubeConfigPath(), opts, configFileMode); err != nil {
 		return maskAny(err)
@@ -122,10 +122,10 @@ func (c Component) RemoveKubeConfig(client util.SSHClient, deps service.ServiceD
 }
 
 // UploadCertificates creates a server certificate for the component and uploads it.
-func (c Component) UploadCertificates(commonName, orgName string, client util.SSHClient, deps service.ServiceDependencies) error {
+func (c Component) UploadCertificates(commonName, orgName string, client util.SSHClient, deps service.ServiceDependencies, additionalHosts ...string) error {
 	log := deps.Logger
 	log.Info().Msgf("Creating %s TLS Certificates", c.Name)
-	cert, key, err := deps.KubernetesCA.CreateServerCertificate(commonName, orgName, client)
+	cert, key, err := deps.KubernetesCA.CreateServerCertificate(commonName, orgName, client, additionalHosts...)
 	if err != nil {
 		return maskAny(err)
 	}

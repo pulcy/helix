@@ -16,7 +16,6 @@ package controllermanager
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -31,7 +30,7 @@ var (
 )
 
 const (
-	manifestPath = "/etc/kubernetes/manifests/scheduler.yaml"
+	manifestPath = "/etc/kubernetes/manifests/kube-controller-manager.yaml"
 
 	manifestFileMode = os.FileMode(0644)
 	certFileMode     = os.FileMode(0644)
@@ -51,36 +50,27 @@ func (t *controllermanagerService) Name() string {
 }
 
 func (t *controllermanagerService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	t.Component.Name = t.Name()
+	t.Component.Name = "controller-manager"
 	return nil
 }
 
 // SetupMachine configures the machine to run apiserver.
-func (t *controllermanagerService) SetupMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *controllermanagerService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup scheduler on this host?
-	if !flags.ControlPlane.ContainsHost(client.GetHost()) {
+	if !node.IsControlPlane {
 		log.Info().Msg("No kube-controller-manager on this machine")
 		return nil
 	}
 
-	cfg, err := t.createConfig(client, deps, flags)
+	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
-		return maskAny(err)
-	}
-
-	// Create & Upload service account signing certificates
-	_, saKey, err := deps.KubernetesCA.CreateServerCertificate("kubernetes", "Kubernetes Controller Manager", client)
-	if err != nil {
-		return maskAny(err)
-	}
-	if err := client.UpdateFile(log, cfg.ServiceAccountKeyFile, []byte(saKey), keyFileMode); err != nil {
 		return maskAny(err)
 	}
 
 	// Create & Upload kubeconfig
-	if err := t.Component.CreateKubeConfig(client, deps, flags); err != nil {
+	if err := t.Component.CreateKubeConfig("system:kube-controller-manager", "Kubernetes", client, deps, flags); err != nil {
 		return maskAny(err)
 	}
 
@@ -94,13 +84,8 @@ func (t *controllermanagerService) SetupMachine(client util.SSHClient, deps serv
 }
 
 // ResetMachine removes kube-controller-manager from the machine.
-func (t *controllermanagerService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
-
-	cfg, err := t.createConfig(client, deps, flags)
-	if err != nil {
-		return maskAny(err)
-	}
+func (t *controllermanagerService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Create manifest
 	if err := client.RemoveFile(log, manifestPath); err != nil {
@@ -109,10 +94,6 @@ func (t *controllermanagerService) ResetMachine(client util.SSHClient, deps serv
 
 	// Create & Upload kubeconfig
 	if err := t.Component.RemoveKubeConfig(client, deps, flags); err != nil {
-		return maskAny(err)
-	}
-
-	if err := client.RemoveFile(log, cfg.ServiceAccountKeyFile); err != nil {
 		return maskAny(err)
 	}
 
@@ -131,18 +112,17 @@ type config struct {
 	ServiceAccountKeyFile  string
 }
 
-func (t *controllermanagerService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
-	certDir := t.Component.CertDir()
+func (t *controllermanagerService) createConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	result := config{
 		Image:                  flags.Images.HyperKube,
-		PodName:                "kube-controller-manager-" + client.GetHost(),
-		PkiDir:                 t.Component.CertRootDir(),
+		PodName:                "kube-controller-manager-" + node.Name,
+		PkiDir:                 t.Component.CertDir(),
 		FeatureGates:           strings.Join(flags.Kubernetes.FeatureGates, ","),
 		KubeConfigPath:         t.KubeConfigPath(),
 		ClusterSigningCertFile: t.CACertPath(),
 		ClusterSigningKeyFile:  t.CAKeyPath(),
 		RootCAFile:             t.CACertPath(),
-		ServiceAccountKeyFile:  filepath.Join(certDir, "sa.key"),
+		ServiceAccountKeyFile:  t.SAKeyPath(),
 	}
 
 	return result, nil

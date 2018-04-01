@@ -54,20 +54,21 @@ func (t *kubeletService) Prepare(deps service.ServiceDependencies, flags service
 }
 
 // SetupMachine configures the machine to run ETCD.
-func (t *kubeletService) SetupMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *kubeletService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 	cfg, err := t.createConfig(client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
 
 	// Create & Upload certificates
-	if err := t.Component.UploadCertificates("system:node:"+client.GetHost(), "system:nodes", client, deps); err != nil {
+	if err := t.Component.UploadCertificates("system:node:"+node.Name, "system:nodes", client, deps); err != nil {
 		return maskAny(err)
 	}
 
 	// Create & Upload kubeconfig
-	if err := t.Component.CreateKubeConfig(client, deps, flags); err != nil {
+	cn := "system:node:" + strings.ToLower(node.Name)
+	if err := t.Component.CreateKubeConfig(cn, "system:nodes", client, deps, flags); err != nil {
 		return maskAny(err)
 	}
 
@@ -92,8 +93,8 @@ func (t *kubeletService) SetupMachine(client util.SSHClient, deps service.Servic
 }
 
 // ResetMachine removes kubelet from the machine.
-func (t *kubeletService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *kubeletService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Stop service
 	if _, err := client.Run(log, "sudo systemctl stop "+serviceName, "", true); err != nil {

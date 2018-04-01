@@ -44,20 +44,20 @@ func (flags Etcd) CreateClientEndpoints(cp ControlPlane) string {
 // CreateInitialCluster returns the peer URLs to reach an ETCD servers
 // in the format accepted by --initial-cluster
 func (flags Etcd) CreateInitialCluster(cp ControlPlane) string {
-	return flags.createEndpoints(cp, defaultEtcdPeerPort, func(m string) string {
-		return m + "="
+	return flags.createEndpoints(cp, defaultEtcdPeerPort, func(node Node) string {
+		return node.Name + "="
 	})
 }
 
 // createEndpoints returns the URLs to reach an ETCD servers at the given port.
-func (flags Etcd) createEndpoints(cp ControlPlane, port int, prefixBuilder func(string) string) string {
+func (flags Etcd) createEndpoints(cp ControlPlane, port int, prefixBuilder func(Node) string) string {
 	endpoints := make([]string, len(cp.Members))
-	for i, m := range cp.Members {
+	for i, n := range cp.nodes {
 		prefix := ""
 		if prefixBuilder != nil {
-			prefix = prefixBuilder(m)
+			prefix = prefixBuilder(n)
 		}
-		endpoints[i] = fmt.Sprintf("%shttps://%s:%d", prefix, m, port)
+		endpoints[i] = fmt.Sprintf("%shttps://%s:%d", prefix, n.Address, port)
 	}
 	return strings.Join(endpoints, ",")
 }

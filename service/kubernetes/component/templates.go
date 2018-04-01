@@ -19,7 +19,7 @@ const (
 kind: Config
 clusters:
 - cluster:
-    certificate-authority: {{.CAPath}}
+    certificate-authority-data: {{.CAData}}
     server: {{.Server}}
   name: kubernetes
 contexts:
@@ -31,7 +31,7 @@ current-context: {{.ContextName}}
 users:
 - name: {{.UserName}}
   user:
-    client-certificate: {{.ClientCertPath}}
-    client-key: {{.ClientKeyPath}}
+    client-certificate-data: {{.ClientCertData}}
+    client-key-data: {{.ClientKeyData}}
 `
 )

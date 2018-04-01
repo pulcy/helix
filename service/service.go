@@ -26,19 +26,24 @@ import (
 type Service interface {
 	Name() string
 	Prepare(deps ServiceDependencies, flags ServiceFlags) error
-	SetupMachine(client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
-	ResetMachine(client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
+	SetupMachine(node Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
+	ResetMachine(node Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
 }
 
 type ServiceDependencies struct {
-	Logger       zerolog.Logger
-	KubernetesCA util.CA
+	Logger         zerolog.Logger
+	KubernetesCA   util.CA
+	ServiceAccount struct {
+		Cert string
+		Key  string
+	}
 }
 
 type ServiceFlags struct {
 	// General
 	DryRun  bool
 	Members []string // IP/hostname of all machines (no need to include control-plane members)
+	nodes   []Node
 	SSH     struct {
 		User string
 	}
@@ -59,9 +64,11 @@ type ServiceFlags struct {
 
 // SetupDefaults fills given flags with default value
 func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
-	if err := resolveDNSNames(flags.Members); err != nil {
+	nodes, err := CreateNodes(flags.Members, false)
+	if err != nil {
 		return maskAny(err)
 	}
+	flags.nodes = nodes
 	if flags.Architecture == "" {
 		flags.Architecture = "amd64"
 	}
@@ -80,20 +87,20 @@ func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
 	return nil
 }
 
-// AllMembers returns a list of all members, including control plane members.
-func (flags ServiceFlags) AllMembers() []string {
-	m := make(map[string]struct{})
-	for _, x := range flags.Members {
-		m[x] = struct{}{}
+// AllNodes returns a list of all members, including control plane members.
+func (flags ServiceFlags) AllNodes() []Node {
+	m := make(map[string]Node)
+	for _, x := range flags.nodes {
+		m[x.Name] = x
 	}
-	for _, x := range flags.ControlPlane.Members {
-		m[x] = struct{}{}
+	for _, x := range flags.ControlPlane.nodes {
+		m[x.Name] = x
 	}
-	result := make([]string, 0, len(m))
-	for k := range m {
-		result = append(result, k)
+	result := make([]Node, 0, len(m))
+	for _, v := range m {
+		result = append(result, v)
 	}
-	sort.Strings(result)
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result
 }
 
@@ -101,7 +108,13 @@ func (flags ServiceFlags) AllMembers() []string {
 func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error {
 	// Create Kubernetes CA
 	var err error
-	deps.KubernetesCA, err = util.NewCA("Kubernetes")
+	deps.KubernetesCA, err = util.NewCA("Kubernetes CA")
+	if err != nil {
+		return maskAny(err)
+	}
+
+	// Create service account certificate
+	deps.ServiceAccount.Cert, deps.ServiceAccount.Key, err = util.NewServiceAccountCertificate()
 	if err != nil {
 		return maskAny(err)
 	}
@@ -115,7 +128,7 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 	}
 
 	// Dial machines
-	clients, err := dialMachines(deps.Logger, flags)
+	clients, nodes, err := dialMachines(deps.Logger, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -130,15 +143,15 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 		wg := sync.WaitGroup{}
 		errors := make(chan error, len(clients))
 		defer close(errors)
-		for _, client := range clients {
+		for i, client := range clients {
 			wg.Add(1)
-			go func(client util.SSHClient) {
+			go func(client util.SSHClient, node Node) {
 				defer wg.Done()
-				deps.Logger.Info().Msgf("Setting up %s service on %s", s.Name(), client.GetHost())
-				if err := s.SetupMachine(client, deps, flags); err != nil {
+				deps.Logger.Info().Msgf("Setting up %s service on %s", s.Name(), node.Name)
+				if err := s.SetupMachine(node, client, deps, flags); err != nil {
 					errors <- maskAny(err)
 				}
-			}(client)
+			}(client, nodes[i])
 		}
 		wg.Wait()
 		select {
@@ -163,7 +176,7 @@ func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) err
 	}
 
 	// Dial machines
-	clients, err := dialMachines(deps.Logger, flags)
+	clients, nodes, err := dialMachines(deps.Logger, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -173,20 +186,20 @@ func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) err
 		}
 	}()
 
-	// Setup all services on all machines
+	// Reset all services on all machines
 	for _, s := range services {
 		wg := sync.WaitGroup{}
 		errors := make(chan error, len(clients))
 		defer close(errors)
-		for _, client := range clients {
+		for i, client := range clients {
 			wg.Add(1)
-			go func(client util.SSHClient) {
+			go func(client util.SSHClient, node Node) {
 				defer wg.Done()
-				deps.Logger.Info().Msgf("Resetting %s service on %s", s.Name(), client.GetHost())
-				if err := s.ResetMachine(client, deps, flags); err != nil {
+				deps.Logger.Info().Msgf("Resetting %s service on %s", s.Name(), node.Name)
+				if err := s.ResetMachine(node, client, deps, flags); err != nil {
 					errors <- maskAny(err)
 				}
-			}(client)
+			}(client, nodes[i])
 		}
 		wg.Wait()
 		select {
@@ -201,30 +214,30 @@ func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) err
 }
 
 // dialMachines opens connections to all clients.
-func dialMachines(log zerolog.Logger, flags ServiceFlags) ([]util.SSHClient, error) {
-	allMembers := flags.AllMembers()
-	clients := make([]util.SSHClient, len(allMembers))
+func dialMachines(log zerolog.Logger, flags ServiceFlags) ([]util.SSHClient, []Node, error) {
+	allNodes := flags.AllNodes()
+	clients := make([]util.SSHClient, len(allNodes))
 	wg := sync.WaitGroup{}
-	errors := make(chan error, len(allMembers))
+	errors := make(chan error, len(allNodes))
 	defer close(errors)
-	for i, m := range allMembers {
+	for i, n := range allNodes {
 		wg.Add(1)
-		go func(i int, m string) {
+		go func(i int, n Node) {
 			defer wg.Done()
-			log.Info().Msgf("Dialing %s", m)
-			client, err := util.DialSSH(flags.SSH.User, m, flags.DryRun)
+			log.Info().Msgf("Dialing %s (%s)", n.Name, n.Address)
+			client, err := util.DialSSH(flags.SSH.User, n.Name, n.Address, flags.DryRun)
 			if err != nil {
 				errors <- maskAny(err)
 			} else {
 				clients[i] = client
 			}
-		}(i, m)
+		}(i, n)
 	}
 	wg.Wait()
 	select {
 	case err := <-errors:
-		return nil, maskAny(err)
+		return nil, nil, maskAny(err)
 	default:
-		return clients, nil
+		return clients, allNodes, nil
 	}
 }

@@ -29,7 +29,8 @@ import (
 
 type SSHClient interface {
 	io.Closer
-	GetHost() string
+	GetAddress() string
+	GetHostName() string
 	Run(log zerolog.Logger, command, stdin string, quiet bool) (string, error)
 
 	// EnsureDirectoryOf checks if the directory of the given file path exists and if not creates it.
@@ -53,13 +54,14 @@ type SSHClient interface {
 }
 
 type sshClient struct {
-	client *ssh.Client
-	host   string
-	dryRun bool
+	client   *ssh.Client
+	hostName string
+	address  string
+	dryRun   bool
 }
 
 // DialSSH creates a new SSH connection to the given user on the given host.
-func DialSSH(userName, host string, dryRun bool) (SSHClient, error) {
+func DialSSH(userName, hostName, address string, dryRun bool) (SSHClient, error) {
 	// To authenticate with the remote server you must pass at least one
 	// implementation of AuthMethod via the Auth field in ClientConfig.
 	config := &ssh.ClientConfig{
@@ -74,21 +76,26 @@ func DialSSH(userName, host string, dryRun bool) (SSHClient, error) {
 		return nil, maskAny(err)
 	}
 
-	addr := net.JoinHostPort(host, "22")
+	addr := net.JoinHostPort(address, "22")
 	client, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
 		return nil, maskAny(err)
 	}
 
 	return &sshClient{
-		client: client,
-		host:   host,
-		dryRun: dryRun,
+		client:   client,
+		hostName: hostName,
+		address:  address,
+		dryRun:   dryRun,
 	}, nil
 }
 
-func (s *sshClient) GetHost() string {
-	return s.host
+func (s *sshClient) GetHostName() string {
+	return s.hostName
+}
+
+func (s *sshClient) GetAddress() string {
+	return s.address
 }
 
 func (s *sshClient) Close() error {

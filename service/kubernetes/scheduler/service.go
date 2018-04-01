@@ -30,7 +30,7 @@ var (
 )
 
 const (
-	manifestPath = "/etc/kubernetes/manifests/scheduler.yaml"
+	manifestPath = "/etc/kubernetes/manifests/kube-scheduler.yaml"
 
 	manifestFileMode = os.FileMode(0644)
 	certFileMode     = os.FileMode(0644)
@@ -50,27 +50,27 @@ func (t *schedulerService) Name() string {
 }
 
 func (t *schedulerService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	t.Component.Name = t.Name()
+	t.Component.Name = "scheduler"
 	return nil
 }
 
 // SetupMachine configures the machine to run apiserver.
-func (t *schedulerService) SetupMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	log := deps.Logger.With().Str("host", client.GetHost()).Logger()
+func (t *schedulerService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup scheduler on this host?
-	if !flags.ControlPlane.ContainsHost(client.GetHost()) {
+	if !node.IsControlPlane {
 		log.Info().Msg("No kube-scheduler on this machine")
 		return nil
 	}
 
-	cfg, err := t.createConfig(client, deps, flags)
+	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
 
 	// Create & Upload kubeconfig
-	if err := t.Component.CreateKubeConfig(client, deps, flags); err != nil {
+	if err := t.Component.CreateKubeConfig("system:kube-scheduler", "Kubernetes", client, deps, flags); err != nil {
 		return maskAny(err)
 	}
 
@@ -84,7 +84,7 @@ func (t *schedulerService) SetupMachine(client util.SSHClient, deps service.Serv
 }
 
 // ResetMachine removes kube-scheduler from the machine.
-func (t *schedulerService) ResetMachine(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *schedulerService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	if err := client.RemoveFile(deps.Logger, manifestPath); err != nil {
 		return maskAny(err)
 	}
@@ -101,10 +101,10 @@ type config struct {
 	KubeConfigPath string // Path to a kubeconfig file, specifying how to connect to the API server.
 }
 
-func (t *schedulerService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
+func (t *schedulerService) createConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	result := config{
 		Image:          flags.Images.HyperKube,
-		PodName:        "kube-scheduler-" + client.GetHost(),
+		PodName:        "kube-scheduler-" + node.Name,
 		FeatureGates:   strings.Join(flags.Kubernetes.FeatureGates, ","),
 		KubeConfigPath: t.KubeConfigPath(),
 	}

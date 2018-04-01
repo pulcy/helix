@@ -31,34 +31,35 @@ spec:
   - command:
     - /hyperkube
     - kube-apiserver
-    - --tls-cert-file={{ .CertFile }}
-    - --tls-private-key-file={{ .KeyFile }}
-    - --secure-port=6443
-    - --insecure-port=0
-    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
-    - --client-ca-file={{ .ClientCAFile }}
-    - --requestheader-client-ca-file={{.ProxyClientCAFile}}
-    - --proxy-client-cert-file={{.ProxyClientCertFile}}
-    - --proxy-client-key-file={{.ProxyClientKeyFile}}
-    - --requestheader-extra-headers-prefix=X-Remote-Extra-
-    - --requestheader-allowed-names=
-    - --service-cluster-ip-range=10.96.0.0/12
-    - --kubelet-certificate-authority={{ .KubeletCAFile }}
-    - --kubelet-client-certificate={{ .KubeletCertFile }}
-    - --kubelet-client-key={{ .KubeletKeyFile }}
-    - --requestheader-username-headers=X-Remote-User
-    - --advertise-address=$(PUBLIC_IP)
-    - --insecure-bind-address=127.0.0.1
     - --admission-control=Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,DefaultTolerationSeconds,NodeRestriction,ResourceQuota
-    - --enable-bootstrap-token-auth=true
+    - --advertise-address=$(PUBLIC_IP)
     - --allow-privileged=true
-    - --requestheader-group-headers=X-Remote-Group
     - --authorization-mode=Node,RBAC
+    - --client-ca-file={{ .ClientCAFile }}
+    - --enable-bootstrap-token-auth=true
     - --etcd-cafile={{ .EtcdCAFile }}
     - --etcd-certfile={{ .EtcdCertFile }}
     - --etcd-keyfile={{ .EtcdKeyFile }}
     - --etcd-servers={{ .EtcdEndpoints }}
     - --feature-gates={{ .FeatureGates }}
+    - --insecure-bind-address=127.0.0.1
+    - --insecure-port=0
+    - --kubelet-certificate-authority={{ .KubeletCAFile }}
+    - --kubelet-client-certificate={{ .KubeletCertFile }}
+    - --kubelet-client-key={{ .KubeletKeyFile }}
+    - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+    - --proxy-client-cert-file={{.ProxyClientCertFile}}
+    - --proxy-client-key-file={{.ProxyClientKeyFile}}
+    - --requestheader-allowed-names=
+    - --requestheader-client-ca-file={{.ProxyClientCAFile}}
+    - --requestheader-extra-headers-prefix=X-Remote-Extra-
+    - --requestheader-group-headers=X-Remote-Group
+    - --requestheader-username-headers=X-Remote-User
+    - --secure-port=6443
+    - --service-account-key-file={{ .ServiceAccountCertFile }}
+    - --service-cluster-ip-range={{ .ServiceClusterIPRange }}
+    - --tls-cert-file={{ .APIServerCertFile }}
+    - --tls-private-key-file={{ .APIServerKeyFile }}
     image: {{ .Image }}
     env:
     - name: PUBLIC_IP
@@ -74,8 +75,8 @@ spec:
       httpGet:
         host: 127.0.0.1
         path: /healthz
-        port: 8080
-        scheme: HTTP
+        port: 6443
+        scheme: HTTPS
       initialDelaySeconds: 15
       timeoutSeconds: 15
     name: kube-apiserver
