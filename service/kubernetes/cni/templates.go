@@ -24,7 +24,7 @@ After=docker.service network-online.target
 Type=oneshot
 ExecStartPre=/bin/mkdir -p {{ .CniBinDir }}
 ExecStartPre=/bin/sh -c "test -f {{ .PluginsTgzPath }} || wget -O {{ .PluginsTgzPath }} {{ .PluginsURL }}"
-ExecStart=/bin/sh -c "test -e {{ .CniBinDir }}/loopback || tar -xvf {{ .PluginsTgzPath }} -C {{ .CniBinDir }}"
+ExecStart=/bin/sh -c "test -e {{ .CniBinDir }}/loopback || tar -xvf {{ .PluginsTgzPath }} -C {{ .CniBinDir }}/"
 Restart=no
 RemainAfterExit=yes
 
