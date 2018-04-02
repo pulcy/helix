@@ -17,6 +17,7 @@ package util
 import (
 	"context"
 
+	corev1 "github.com/ericchiang/k8s/apis/core/v1"
 	"github.com/ericchiang/k8s/util/intstr"
 
 	"github.com/ericchiang/k8s"
@@ -47,5 +48,15 @@ func IntOrStringI(i int32) *intstr.IntOrString {
 func IntOrStringS(s string) *intstr.IntOrString {
 	return &intstr.IntOrString{
 		StrVal: k8s.String(s),
+	}
+}
+
+// EnvVarSourceFieldRef creates a new envvar source with field reference
+// to given field path.
+func EnvVarSourceFieldRef(fieldPath string) *corev1.EnvVarSource {
+	return &corev1.EnvVarSource{
+		FieldRef: &corev1.ObjectFieldSelector{
+			FieldPath: k8s.String(fieldPath),
+		},
 	}
 }

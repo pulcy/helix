@@ -22,27 +22,32 @@ import (
 
 // Images holds docker image names
 type Images struct {
-	Etcd      string
-	HyperKube string
 	CoreDNS   string
+	Etcd      string
+	Flannel   string
+	HyperKube string
 }
 
 const (
 	etcdImageTemplate      = "gcr.io/google-containers/etcd-%s:3.2.17"
+	flannelImageTemplate   = "quay.io/coreos/flannel:v0.9.1-%s"
 	hyperKubeImageTemplate = "gcr.io/google-containers/hyperkube-%s:%s"
 	defaultCoreDNSImage    = "coredns/coredns:1.1.1"
 )
 
 // setupDefaults fills given flags with default value
 func (flags *Images) setupDefaults(log zerolog.Logger, architecture, k8sVersion string) error {
+	if flags.CoreDNS == "" {
+		flags.CoreDNS = defaultCoreDNSImage
+	}
 	if flags.Etcd == "" {
 		flags.Etcd = fmt.Sprintf(etcdImageTemplate, architecture)
 	}
+	if flags.Flannel == "" {
+		flags.Flannel = fmt.Sprintf(flannelImageTemplate, architecture)
+	}
 	if flags.HyperKube == "" {
 		flags.HyperKube = fmt.Sprintf(hyperKubeImageTemplate, architecture, k8sVersion)
-	}
-	if flags.CoreDNS == "" {
-		flags.CoreDNS = defaultCoreDNSImage
 	}
 	return nil
 }
