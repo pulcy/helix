@@ -42,6 +42,7 @@ func NewService() service.Service {
 
 type kubeletService struct {
 	component.Component
+	bootstrap component.Component
 }
 
 func (t *kubeletService) Name() string {
@@ -50,13 +51,14 @@ func (t *kubeletService) Name() string {
 
 func (t *kubeletService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	t.Component.Name = t.Name()
+	t.bootstrap.Name = "bootstrap-kubelet"
 	return nil
 }
 
 // SetupMachine configures the machine to run ETCD.
 func (t *kubeletService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
-	cfg, err := t.createConfig(client, deps, flags)
+	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -66,10 +68,17 @@ func (t *kubeletService) SetupMachine(node service.Node, client util.SSHClient, 
 		return maskAny(err)
 	}
 
-	// Create & Upload kubeconfig
+	// Create & Upload bootstrap kubeconfig
 	cn := "system:node:" + strings.ToLower(node.Name)
-	if err := t.Component.CreateKubeConfig(cn, "system:nodes", client, deps, flags); err != nil {
+	if err := t.bootstrap.CreateKubeConfig(cn, "system:nodes", client, deps, flags); err != nil {
 		return maskAny(err)
+	}
+
+	// Create & Upload kubeconfig (if control plan)
+	if node.IsControlPlane {
+		if err := t.CreateKubeConfig(cn, "system:nodes", client, deps, flags); err != nil {
+			return maskAny(err)
+		}
 	}
 
 	// Create service
@@ -115,7 +124,12 @@ func (t *kubeletService) ResetMachine(node service.Node, client util.SSHClient, 
 	}
 
 	// Remove kubeconfig
-	if err := t.Component.RemoveKubeConfig(client, deps, flags); err != nil {
+	if err := t.RemoveKubeConfig(client, deps, flags); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove bootstrap kubeconfig
+	if err := t.bootstrap.RemoveKubeConfig(client, deps, flags); err != nil {
 		return maskAny(err)
 	}
 
@@ -123,28 +137,33 @@ func (t *kubeletService) ResetMachine(node service.Node, client util.SSHClient, 
 }
 
 type config struct {
-	KubernetesVersion string // Version number of kubernetes
-	ClusterDNS        string // Comma-separated list of DNS server IP address.
-	ClusterDomain     string // Domain for this cluster.
-	FeatureGates      string // Feature gates to use
-	KubeConfigPath    string // Path to a kubeconfig file, specifying how to connect to the API server.
-	NodeLabels        string // Labels to add when registering the node in the cluster.
-	CertPath          string // File containing x509 Certificate used for serving HTTPS (with intermediate certs, if any, concatenated after server cert).
-	KeyPath           string // File containing x509 private key matching CertPath
-	ClientCAPath      string // Path of --client-ca-file
+	KubernetesVersion       string // Version number of kubernetes
+	ClusterDNS              string // Comma-separated list of DNS server IP address.
+	ClusterDomain           string // Domain for this cluster.
+	FeatureGates            string // Feature gates to use
+	BootstrapKubeConfigPath string // Path to a bootstrap-kubeconfig file, specifying how to connect to the API server.
+	KubeConfigPath          string // Path to a bootstrap-kubeconfig file, specifying how to connect to the API server.
+	NodeLabels              string // Labels to add when registering the node in the cluster.
+	CertPath                string // File containing x509 Certificate used for serving HTTPS (with intermediate certs, if any, concatenated after server cert).
+	KeyPath                 string // File containing x509 private key matching CertPath
+	ClientCAPath            string // Path of --client-ca-file
 }
 
-func (t *kubeletService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
+func (t *kubeletService) createConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	result := config{
-		KubernetesVersion: flags.Kubernetes.Version,
-		ClusterDNS:        flags.Kubernetes.ClusterDNS,
-		ClusterDomain:     flags.Kubernetes.ClusterDomain,
-		FeatureGates:      strings.Join(flags.Kubernetes.FeatureGates, ","),
-		KubeConfigPath:    t.KubeConfigPath(),
-		NodeLabels:        "",
-		CertPath:          t.CertPath(),
-		KeyPath:           t.KeyPath(),
-		ClientCAPath:      t.CACertPath(),
+		KubernetesVersion:       flags.Kubernetes.Version,
+		ClusterDNS:              flags.Kubernetes.ClusterDNS,
+		ClusterDomain:           flags.Kubernetes.ClusterDomain,
+		FeatureGates:            strings.Join(flags.Kubernetes.FeatureGates, ","),
+		BootstrapKubeConfigPath: t.bootstrap.KubeConfigPath(),
+		KubeConfigPath:          "",
+		NodeLabels:              "",
+		CertPath:                t.CertPath(),
+		KeyPath:                 t.KeyPath(),
+		ClientCAPath:            t.CACertPath(),
+	}
+	if node.IsControlPlane {
+		result.KubeConfigPath = t.KubeConfigPath()
 	}
 
 	return result, nil

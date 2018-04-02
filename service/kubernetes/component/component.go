@@ -32,11 +32,11 @@ var (
 
 const (
 	certsDir           = "/etc/kubernetes/pki"
-	kubeConfigsRootDir = "/var/lib"
+	kubeConfigsRootDir = "/etc/kubernetes"
 
 	configFileMode = os.FileMode(0600)
-	certFileMode   = os.FileMode(0644)
-	keyFileMode    = os.FileMode(0600)
+	certFileMode   = util.CertFileMode
+	keyFileMode    = util.KeyFileMode
 )
 
 // Component is a helper for a kubernetes component

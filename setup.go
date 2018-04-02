@@ -30,15 +30,15 @@ import (
 )
 
 var (
-	cmdSetup = &cobra.Command{
-		Use: "setup",
-		Run: runSetup,
+	cmdInit = &cobra.Command{
+		Use: "init",
+		Run: runInit,
 	}
 	cmdReset = &cobra.Command{
 		Use: "reset",
 		Run: runReset,
 	}
-	setupFlags = service.ServiceFlags{}
+	initFlags  = service.ServiceFlags{}
 	resetFlags = service.ServiceFlags{}
 
 	// Create services to setup
@@ -55,46 +55,50 @@ var (
 )
 
 func init() {
-	// Setup
+	// cmdInit
+	f := cmdInit.Flags()
 	// General
-	cmdSetup.Flags().BoolVar(&setupFlags.DryRun, "dry-run", true, "If set, no changes will be made")
-	cmdSetup.Flags().StringSliceVar(&setupFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
-	cmdSetup.Flags().StringVar(&setupFlags.Architecture, "arch", "amd64", "Architecture of the machines")
-	cmdSetup.Flags().StringVar(&setupFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
+	f.StringVarP(&initFlags.LocalConfDir, "conf-dir", "c", "", "Local directory containing cluster configuration")
+	f.BoolVar(&initFlags.DryRun, "dry-run", true, "If set, no changes will be made")
+	f.StringSliceVar(&initFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
+	f.StringVar(&initFlags.Architecture, "arch", "amd64", "Architecture of the machines")
+	f.StringVar(&initFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
 	// Control plane
-	cmdSetup.Flags().StringSliceVar(&setupFlags.ControlPlane.Members, "control-plane-members", nil, "IP addresses (or hostnames) of control-plane members")
+	f.StringSliceVar(&initFlags.ControlPlane.Members, "control-plane-members", nil, "IP addresses (or hostnames) of control-plane members")
 	// ETCD
-	cmdSetup.Flags().StringVar(&setupFlags.Etcd.ClusterState, "etcd-cluster-state", "", "State of the ETCD cluster new|existing")
+	f.StringVar(&initFlags.Etcd.ClusterState, "etcd-cluster-state", "", "State of the ETCD cluster new|existing")
 	// Kubernetes
-	cmdSetup.Flags().StringVar(&setupFlags.Kubernetes.APIDNSName, "k8s-api-dns-name", defaultKubernetesAPIDNSName(), "Alternate name of the Kubernetes API server")
-	cmdSetup.Flags().StringVar(&setupFlags.Kubernetes.Metadata, "k8s-metadata", "", "Metadata list for kubelet")
+	f.StringVar(&initFlags.Kubernetes.APIDNSName, "k8s-api-dns-name", defaultKubernetesAPIDNSName(), "Alternate name of the Kubernetes API server")
+	f.StringVar(&initFlags.Kubernetes.Metadata, "k8s-metadata", "", "Metadata list for kubelet")
 
-	// Reset
+	// cmdReset
+	f = cmdReset.Flags()
 	// General
-	cmdReset.Flags().BoolVar(&resetFlags.DryRun, "dry-run", true, "If set, no changes will be made")
-	cmdReset.Flags().StringSliceVar(&resetFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
-	cmdReset.Flags().StringVar(&resetFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
+	f.BoolVar(&resetFlags.DryRun, "dry-run", true, "If set, no changes will be made")
+	f.StringSliceVar(&resetFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
+	f.StringVar(&resetFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
 
-	cmdMain.AddCommand(cmdSetup)
+	cmdMain.AddCommand(cmdInit)
 	cmdMain.AddCommand(cmdReset)
 }
 
-func runSetup(cmd *cobra.Command, args []string) {
+func runInit(cmd *cobra.Command, args []string) {
 	showVersion(cmd, args)
 
-	if err := setupFlags.SetupDefaults(cliLog); err != nil {
+	if err := initFlags.SetupDefaults(cliLog); err != nil {
 		Exitf("SetupDefaults failed: %#v\n", err)
 	}
 
-	assertArgIsSet(strings.Join(setupFlags.Members, ","), "--members")
-	assertArgIsSet(strings.Join(setupFlags.ControlPlane.Members, ","), "--control-plane-members")
+	assertArgIsSet(initFlags.LocalConfDir, "--conf-dir")
+	assertArgIsSet(strings.Join(initFlags.Members, ","), "--members")
+	assertArgIsSet(strings.Join(initFlags.ControlPlane.Members, ","), "--control-plane-members")
 
 	deps := service.ServiceDependencies{
 		Logger: cliLog,
 	}
 
 	// Go for it
-	if err := service.Run(deps, setupFlags, services); err != nil {
+	if err := service.Run(deps, initFlags, services); err != nil {
 		Exitf("Setup failed: %#v\n", err)
 	}
 	cliLog.Info().Msg("Done")

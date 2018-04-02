@@ -17,9 +17,11 @@ package util
 import (
 	"bytes"
 	"io"
+	"math/rand"
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -68,26 +70,40 @@ func DialSSH(userName, hostName, address string, dryRun bool) (SSHClient, error)
 		User:            userName,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
-	var sshAgent agent.Agent
-	if agentConn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
-		sshAgent = agent.NewClient(agentConn)
-		config.Auth = append(config.Auth, ssh.PublicKeysCallback(sshAgent.Signers))
-	} else {
-		return nil, maskAny(err)
+
+	var result SSHClient
+	op := func() error {
+		var sshAgent agent.Agent
+		if agentConn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
+			sshAgent = agent.NewClient(agentConn)
+			config.Auth = append(config.Auth, ssh.PublicKeysCallback(sshAgent.Signers))
+		} else {
+			return maskAny(err)
+		}
+
+		addr := net.JoinHostPort(address, "22")
+		client, err := ssh.Dial("tcp", addr, config)
+		if err != nil {
+			return maskAny(err)
+		}
+		result = &sshClient{
+			client:   client,
+			hostName: hostName,
+			address:  address,
+			dryRun:   dryRun,
+		}
+		return nil
 	}
 
-	addr := net.JoinHostPort(address, "22")
-	client, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		return nil, maskAny(err)
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		lastErr = op()
+		if lastErr == nil {
+			return result, nil
+		}
+		time.Sleep(time.Millisecond * time.Duration(rand.Intn(100)))
 	}
-
-	return &sshClient{
-		client:   client,
-		hostName: hostName,
-		address:  address,
-		dryRun:   dryRun,
-	}, nil
+	return nil, maskAny(lastErr)
 }
 
 func (s *sshClient) GetHostName() string {

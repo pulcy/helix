@@ -41,10 +41,8 @@ const (
 	peerCAFileName     = "peer-ca.crt"
 
 	manifestFileMode = os.FileMode(0644)
-	certFileMode     = os.FileMode(0644)
-	keyFileMode      = os.FileMode(0600)
-	dataPathMode     = os.FileMode(0755)
-	initFileMode     = os.FileMode(0755)
+	certFileMode     = util.CertFileMode
+	keyFileMode      = util.KeyFileMode
 )
 
 func NewService() service.Service {
@@ -65,7 +63,8 @@ func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.Se
 	t.initialClusterToken = uniuri.New()
 	log.Info().Msg("Creating ETCD CA")
 	var err error
-	t.ca, err = util.NewCA("ETCD")
+	confDir := flags.LocalConfDir
+	t.ca, err = util.NewCA("ETCD", filepath.Join(confDir, "etcd-ca.crt"), filepath.Join(confDir, "etcd-ca.key"))
 	if err != nil {
 		return maskAny(err)
 	}
@@ -159,6 +158,11 @@ func (t *etcdService) ResetMachine(node service.Node, client util.SSHClient, dep
 		return maskAny(err)
 	}
 	if err := client.RemoveFile(log, cfg.PeerCAFile); err != nil {
+		return maskAny(err)
+	}
+
+	// Remove data dir
+	if err := client.RemoveDirectory(log, cfg.DataDir); err != nil {
 		return maskAny(err)
 	}
 

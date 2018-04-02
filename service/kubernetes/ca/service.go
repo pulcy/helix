@@ -88,6 +88,11 @@ func (t *caService) SetupMachine(node service.Node, client util.SSHClient, deps 
 func (t *caService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
+	// Remove admin.conf
+	if err := t.Component.RemoveKubeConfig(client, deps, flags); err != nil {
+		return maskAny(err)
+	}
+
 	// Remove cert dir
 	if err := client.RemoveDirectory(log, t.Component.CertDir()); err != nil {
 		return maskAny(err)

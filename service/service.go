@@ -15,6 +15,8 @@
 package service
 
 import (
+	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 
@@ -41,10 +43,11 @@ type ServiceDependencies struct {
 
 type ServiceFlags struct {
 	// General
-	DryRun  bool
-	Members []string // IP/hostname of all machines (no need to include control-plane members)
-	nodes   []Node
-	SSH     struct {
+	DryRun       bool
+	LocalConfDir string   // Path of local directory containing configuration (like ca certificates) files.
+	Members      []string // IP/hostname of all machines (no need to include control-plane members)
+	nodes        []Node
+	SSH          struct {
 		User string
 	}
 	Architecture string
@@ -106,15 +109,21 @@ func (flags ServiceFlags) AllNodes() []Node {
 
 // Run all prepare & Setup logic of the given services.
 func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error {
+	// Prepare local conf dir
+	confDir := flags.LocalConfDir
+	if err := os.MkdirAll(confDir, 0755); err != nil {
+		return maskAny(err)
+	}
+
 	// Create Kubernetes CA
 	var err error
-	deps.KubernetesCA, err = util.NewCA("Kubernetes CA")
+	deps.KubernetesCA, err = util.NewCA("Kubernetes CA", filepath.Join(confDir, "kubernetes-ca.crt"), filepath.Join(confDir, "kubernetes-ca.key"))
 	if err != nil {
 		return maskAny(err)
 	}
 
 	// Create service account certificate
-	deps.ServiceAccount.Cert, deps.ServiceAccount.Key, err = util.NewServiceAccountCertificate()
+	deps.ServiceAccount.Cert, deps.ServiceAccount.Key, err = util.NewServiceAccountCertificate(filepath.Join(confDir, "kubernetes-sa.pub"), filepath.Join(confDir, "kubernetes-sa.key"))
 	if err != nil {
 		return maskAny(err)
 	}
