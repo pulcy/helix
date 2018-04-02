@@ -25,6 +25,7 @@ import (
 	"github.com/pulcy/helix/service/kubernetes/ca"
 	"github.com/pulcy/helix/service/kubernetes/controllermanager"
 	"github.com/pulcy/helix/service/kubernetes/controlplane"
+	"github.com/pulcy/helix/service/kubernetes/coredns"
 	"github.com/pulcy/helix/service/kubernetes/hyperkube"
 	"github.com/pulcy/helix/service/kubernetes/kubelet"
 	"github.com/pulcy/helix/service/kubernetes/proxy"
@@ -58,6 +59,7 @@ var (
 		// The order of entries is relevant!
 		controlplane.NewService(),
 		proxy.NewService(),
+		coredns.NewService(),
 	}
 	services = k8sServices // append(bootstrapServices, k8sServices...)
 )

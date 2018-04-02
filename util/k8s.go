@@ -17,6 +17,8 @@ package util
 import (
 	"context"
 
+	"github.com/ericchiang/k8s/util/intstr"
+
 	"github.com/ericchiang/k8s"
 )
 
@@ -32,4 +34,18 @@ func CreateOrUpdate(ctx context.Context, client *k8s.Client, req k8s.Resource, o
 		return maskAny(err)
 	}
 	return nil
+}
+
+// IntOrStringI returns an IntOrString filled with an int.
+func IntOrStringI(i int32) *intstr.IntOrString {
+	return &intstr.IntOrString{
+		IntVal: k8s.Int32(i),
+	}
+}
+
+// IntOrStringS returns an IntOrString filled with a string.
+func IntOrStringS(s string) *intstr.IntOrString {
+	return &intstr.IntOrString{
+		StrVal: k8s.String(s),
+	}
 }
