@@ -105,7 +105,7 @@ func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient,
 	}
 
 	// Create & Upload apiserver-kubelet client certificate
-	log.Info().Msgf("Uploading apiserver-kubelet-client Certificates", t.Name())
+	log.Info().Msg("Uploading apiserver-kubelet-client Certificates")
 	kubeletCert, kubeletKey, err := deps.KubernetesCA.CreateServerCertificate("kubernetes", "system:masters", client)
 	if err != nil {
 		return maskAny(err)

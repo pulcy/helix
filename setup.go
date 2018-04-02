@@ -24,8 +24,10 @@ import (
 	"github.com/pulcy/helix/service/kubernetes/apiserver"
 	"github.com/pulcy/helix/service/kubernetes/ca"
 	"github.com/pulcy/helix/service/kubernetes/controllermanager"
+	"github.com/pulcy/helix/service/kubernetes/controlplane"
 	"github.com/pulcy/helix/service/kubernetes/hyperkube"
 	"github.com/pulcy/helix/service/kubernetes/kubelet"
+	"github.com/pulcy/helix/service/kubernetes/proxy"
 	"github.com/pulcy/helix/service/kubernetes/scheduler"
 )
 
@@ -42,7 +44,7 @@ var (
 	resetFlags = service.ServiceFlags{}
 
 	// Create services to setup
-	services = []service.Service{
+	boostrapService = []service.Service{
 		// The order of entries is relevant!
 		hyperkube.NewService(),
 		ca.NewService(),
@@ -52,6 +54,12 @@ var (
 		scheduler.NewService(),
 		controllermanager.NewService(),
 	}
+	k8sServices = []service.Service{
+		// The order of entries is relevant!
+		controlplane.NewService(),
+		proxy.NewService(),
+	}
+	services = k8sServices // append(bootstrapServices, k8sServices...)
 )
 
 func init() {

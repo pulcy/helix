@@ -25,8 +25,8 @@ import (
 
 type TemplateConfigurator func(*template.Template)
 
-// Render updates the given destinationPath according to the given template and options.
-func (s *sshClient) Render(log zerolog.Logger, templateData, destinationPath string, options interface{}, destinationFileMode os.FileMode, config ...TemplateConfigurator) error {
+// RenderToString renders the given template data using given options to string.
+func RenderToString(log zerolog.Logger, templateData string, options interface{}, config ...TemplateConfigurator) (string, error) {
 	// parse template
 	var tmpl *template.Template
 	tmpl = template.New("name")
@@ -39,17 +39,27 @@ func (s *sshClient) Render(log zerolog.Logger, templateData, destinationPath str
 		c(tmpl)
 	}
 	if _, err := tmpl.Parse(templateData); err != nil {
-		return maskAny(err)
+		return "", maskAny(err)
 	}
 	// execute template to buffer
 	buf := &bytes.Buffer{}
 	tmpl.Funcs(funcMap)
 	if err := tmpl.Execute(buf, options); err != nil {
+		return "", maskAny(err)
+	}
+
+	return buf.String(), nil
+}
+
+// Render updates the given destinationPath according to the given template and options.
+func (s *sshClient) Render(log zerolog.Logger, templateData, destinationPath string, options interface{}, destinationFileMode os.FileMode, config ...TemplateConfigurator) error {
+	content, err := RenderToString(log, templateData, options, config...)
+	if err != nil {
 		return maskAny(err)
 	}
 
 	// Update file
-	if err := s.UpdateFile(log, destinationPath, buf.Bytes(), destinationFileMode); err != nil {
+	if err := s.UpdateFile(log, destinationPath, []byte(content), destinationFileMode); err != nil {
 		return maskAny(err)
 	}
 	return nil

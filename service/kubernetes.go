@@ -15,9 +15,11 @@
 package service
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
+	"github.com/ericchiang/k8s"
 	"github.com/rs/zerolog"
 )
 
@@ -74,4 +76,47 @@ func (flags *Kubernetes) setupDefaults(log zerolog.Logger) error {
 		}
 	}
 	return nil
+}
+
+// NewKubernetesClient creates a client from the outside to the k8s cluster
+func NewKubernetesClient(deps ServiceDependencies, flags ServiceFlags) (*k8s.Client, error) {
+	cert, key, err := deps.KubernetesCA.CreateServerCertificate("kubernetes-admin", "system:masters", nil)
+	if err != nil {
+		return nil, maskAny(err)
+	}
+	cfg := &k8s.Config{
+		Clusters: []k8s.NamedCluster{
+			k8s.NamedCluster{
+				Name: "k8s",
+				Cluster: k8s.Cluster{
+					Server: fmt.Sprintf("https://%s:6443", flags.ControlPlane.nodes[0].Address),
+					CertificateAuthorityData: []byte(deps.KubernetesCA.Cert()),
+				},
+			},
+		},
+		AuthInfos: []k8s.NamedAuthInfo{
+			k8s.NamedAuthInfo{
+				Name: "admin",
+				AuthInfo: k8s.AuthInfo{
+					ClientCertificateData: []byte(cert),
+					ClientKeyData:         []byte(key),
+				},
+			},
+		},
+		Contexts: []k8s.NamedContext{
+			k8s.NamedContext{
+				Name: "k8s",
+				Context: k8s.Context{
+					Cluster:  "k8s",
+					AuthInfo: "admin",
+				},
+			},
+		},
+		CurrentContext: "k8s",
+	}
+	client, err := k8s.NewClient(cfg)
+	if err != nil {
+		return nil, maskAny(err)
+	}
+	return client, nil
 }

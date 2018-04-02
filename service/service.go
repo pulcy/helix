@@ -28,6 +28,20 @@ import (
 type Service interface {
 	Name() string
 	Prepare(deps ServiceDependencies, flags ServiceFlags, willInit bool) error
+}
+
+type ServiceIniter interface {
+	Service
+	Init(deps ServiceDependencies, flags ServiceFlags) error
+}
+
+type ServiceReseter interface {
+	Service
+	Reset(deps ServiceDependencies, flags ServiceFlags) error
+}
+
+type ServiceMachines interface {
+	Service
 	InitMachine(node Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
 	ResetMachine(node Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
 }
@@ -149,25 +163,32 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 
 	// Setup all services on all machines
 	for _, s := range services {
-		wg := sync.WaitGroup{}
-		errors := make(chan error, len(clients))
-		defer close(errors)
-		for i, client := range clients {
-			wg.Add(1)
-			go func(client util.SSHClient, node Node) {
-				defer wg.Done()
-				deps.Logger.Info().Msgf("Setting up %s service on %s", s.Name(), node.Name)
-				if err := s.InitMachine(node, client, deps, flags); err != nil {
-					errors <- maskAny(err)
-				}
-			}(client, nodes[i])
+		if initer, ok := s.(ServiceIniter); ok {
+			if err := initer.Init(deps, flags); err != nil {
+				return maskAny(err)
+			}
 		}
-		wg.Wait()
-		select {
-		case err := <-errors:
-			return maskAny(err)
-		default:
-			// Continue
+		if sMachine, ok := s.(ServiceMachines); ok {
+			wg := sync.WaitGroup{}
+			errors := make(chan error, len(clients))
+			defer close(errors)
+			for i, client := range clients {
+				wg.Add(1)
+				go func(client util.SSHClient, node Node) {
+					defer wg.Done()
+					deps.Logger.Info().Msgf("Setting up %s service on %s", s.Name(), node.Name)
+					if err := sMachine.InitMachine(node, client, deps, flags); err != nil {
+						errors <- maskAny(err)
+					}
+				}(client, nodes[i])
+			}
+			wg.Wait()
+			select {
+			case err := <-errors:
+				return maskAny(err)
+			default:
+				// Continue
+			}
 		}
 	}
 
@@ -197,25 +218,32 @@ func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) err
 
 	// Reset all services on all machines
 	for _, s := range services {
-		wg := sync.WaitGroup{}
-		errors := make(chan error, len(clients))
-		defer close(errors)
-		for i, client := range clients {
-			wg.Add(1)
-			go func(client util.SSHClient, node Node) {
-				defer wg.Done()
-				deps.Logger.Info().Msgf("Resetting %s service on %s", s.Name(), node.Name)
-				if err := s.ResetMachine(node, client, deps, flags); err != nil {
-					errors <- maskAny(err)
-				}
-			}(client, nodes[i])
+		if sMachine, ok := s.(ServiceMachines); ok {
+			wg := sync.WaitGroup{}
+			errors := make(chan error, len(clients))
+			defer close(errors)
+			for i, client := range clients {
+				wg.Add(1)
+				go func(client util.SSHClient, node Node) {
+					defer wg.Done()
+					deps.Logger.Info().Msgf("Resetting %s service on %s", s.Name(), node.Name)
+					if err := sMachine.ResetMachine(node, client, deps, flags); err != nil {
+						errors <- maskAny(err)
+					}
+				}(client, nodes[i])
+			}
+			wg.Wait()
+			select {
+			case err := <-errors:
+				return maskAny(err)
+			default:
+				// Continue
+			}
 		}
-		wg.Wait()
-		select {
-		case err := <-errors:
-			return maskAny(err)
-		default:
-			// Continue
+		if reseter, ok := s.(ServiceReseter); ok {
+			if err := reseter.Reset(deps, flags); err != nil {
+				return maskAny(err)
+			}
 		}
 	}
 

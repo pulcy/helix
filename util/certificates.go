@@ -129,13 +129,18 @@ func (ca *CA) Key() string {
 // CreateServerCertificate creates a server certificates for the given client.
 // Returns certificate, key, error.
 func (ca *CA) CreateServerCertificate(commonName, orgName string, client SSHClient, additionalHosts ...string) (string, string, error) {
+	var hosts []string
+	if client != nil {
+		hosts = append(hosts, client.GetAddress(), client.GetHostName())
+	}
+	hosts = append(hosts, additionalHosts...)
 	opts := certificates.CreateCertificateOptions{
 		Subject: &pkix.Name{
 			CommonName:         commonName,
 			Organization:       []string{orgName},
 			OrganizationalUnit: []string{"Helix"},
 		},
-		Hosts: append([]string{client.GetAddress(), client.GetHostName()}, additionalHosts...),
+		Hosts: hosts,
 		IsCA:  false,
 		//IsClientAuth: false,
 		ValidFrom:   time.Now(),

@@ -7,7 +7,7 @@ COMMIT := $(shell git rev-parse --short HEAD)
 GOBUILDDIR := $(SCRIPTDIR)/.gobuild
 SRCDIR := $(SCRIPTDIR)
 BINDIR := $(ROOTDIR)
-VENDORDIR := $(ROOTDIR)/vendor
+VENDORDIR := $(ROOTDIR)/deps
 
 ORGPATH := github.com/pulcy
 ORGDIR := $(GOBUILDDIR)/src/$(ORGPATH)
@@ -42,6 +42,7 @@ deps:
 $(GOBUILDDIR):
 	@mkdir -p $(ORGDIR)
 	@rm -f $(REPODIR) && ln -s ../../../.. $(REPODIR)
+	GOPATH=$(GOBUILDDIR) pulsar go flatten -V $(VENDORDIR)
 
 update-vendor:
 	@rm -Rf $(VENDORDIR)
