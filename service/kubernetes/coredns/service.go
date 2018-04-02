@@ -276,6 +276,7 @@ func (t *dnsService) Init(deps service.ServiceDependencies, flags service.Servic
 			},
 		},
 	}
+	client.Delete(ctx, svc) // Don't understand yet why this is needed
 	if err := util.CreateOrUpdate(ctx, client, svc); err != nil {
 		return maskAny(err)
 	}
