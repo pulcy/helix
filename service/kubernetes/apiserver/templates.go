@@ -47,6 +47,7 @@ spec:
     - --kubelet-certificate-authority={{ .KubeletCAFile }}
     - --kubelet-client-certificate={{ .KubeletCertFile }}
     - --kubelet-client-key={{ .KubeletKeyFile }}
+    - --kubelet-https=true
     - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
     - --proxy-client-cert-file={{.ProxyClientCertFile}}
     - --proxy-client-key-file={{.ProxyClientKeyFile}}

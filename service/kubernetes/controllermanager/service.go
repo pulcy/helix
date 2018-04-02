@@ -33,8 +33,8 @@ const (
 	manifestPath = "/etc/kubernetes/manifests/kube-controller-manager.yaml"
 
 	manifestFileMode = os.FileMode(0644)
-	certFileMode     = os.FileMode(0644)
-	keyFileMode      = os.FileMode(0600)
+	certFileMode     = util.CertFileMode
+	keyFileMode      = util.KeyFileMode
 )
 
 func NewService() service.Service {
@@ -49,13 +49,13 @@ func (t *controllermanagerService) Name() string {
 	return "kube-controller-manager"
 }
 
-func (t *controllermanagerService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *controllermanagerService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	t.Component.Name = "controller-manager"
 	return nil
 }
 
-// SetupMachine configures the machine to run apiserver.
-func (t *controllermanagerService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+// InitMachine configures the machine to run kube-controller-manager.
+func (t *controllermanagerService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup scheduler on this host?

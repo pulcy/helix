@@ -52,13 +52,13 @@ func (t *apiserverService) Name() string {
 	return "kube-apiserver"
 }
 
-func (t *apiserverService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *apiserverService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	t.Component.Name = "apiserver"
 	return nil
 }
 
-// SetupMachine configures the machine to run apiserver.
-func (t *apiserverService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+// InitMachine configures the machine to run apiserver.
+func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup apiserver on this host?

@@ -33,8 +33,8 @@ const (
 	manifestPath = "/etc/kubernetes/manifests/kube-scheduler.yaml"
 
 	manifestFileMode = os.FileMode(0644)
-	certFileMode     = os.FileMode(0644)
-	keyFileMode      = os.FileMode(0600)
+	certFileMode     = util.CertFileMode
+	keyFileMode      = util.KeyFileMode
 )
 
 func NewService() service.Service {
@@ -49,13 +49,13 @@ func (t *schedulerService) Name() string {
 	return "kube-scheduler"
 }
 
-func (t *schedulerService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *schedulerService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	t.Component.Name = "scheduler"
 	return nil
 }
 
-// SetupMachine configures the machine to run apiserver.
-func (t *schedulerService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+// InitMachine configures the machine to run kube-scheduler.
+func (t *schedulerService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup scheduler on this host?

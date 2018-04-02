@@ -27,8 +27,8 @@ import (
 
 type Service interface {
 	Name() string
-	Prepare(deps ServiceDependencies, flags ServiceFlags) error
-	SetupMachine(node Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
+	Prepare(deps ServiceDependencies, flags ServiceFlags, willInit bool) error
+	InitMachine(node Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
 	ResetMachine(node Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
 }
 
@@ -131,7 +131,7 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 	// Prepare all services
 	for _, s := range services {
 		deps.Logger.Info().Msgf("Preparing %s service", s.Name())
-		if err := s.Prepare(deps, flags); err != nil {
+		if err := s.Prepare(deps, flags, true); err != nil {
 			return maskAny(err)
 		}
 	}
@@ -157,7 +157,7 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 			go func(client util.SSHClient, node Node) {
 				defer wg.Done()
 				deps.Logger.Info().Msgf("Setting up %s service on %s", s.Name(), node.Name)
-				if err := s.SetupMachine(node, client, deps, flags); err != nil {
+				if err := s.InitMachine(node, client, deps, flags); err != nil {
 					errors <- maskAny(err)
 				}
 			}(client, nodes[i])
@@ -179,7 +179,7 @@ func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) err
 	// Prepare all services
 	for _, s := range services {
 		deps.Logger.Info().Msgf("Preparing %s service", s.Name())
-		if err := s.Prepare(deps, flags); err != nil {
+		if err := s.Prepare(deps, flags, false); err != nil {
 			return maskAny(err)
 		}
 	}

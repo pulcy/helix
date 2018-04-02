@@ -45,12 +45,12 @@ func (t *hyperkubeService) Name() string {
 	return ServiceName
 }
 
-func (t *hyperkubeService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *hyperkubeService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	return nil
 }
 
-// SetupMachine configures the machine to run download hyperkube.
-func (t *hyperkubeService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+// InitMachine configures the machine to run download hyperkube.
+func (t *hyperkubeService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 	cfg, err := t.createConfig(client, deps, flags)
 	if err != nil {

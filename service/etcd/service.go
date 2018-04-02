@@ -58,21 +58,23 @@ func (t *etcdService) Name() string {
 	return "etcd"
 }
 
-func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	log := deps.Logger
-	t.initialClusterToken = uniuri.New()
-	log.Info().Msg("Creating ETCD CA")
-	var err error
-	confDir := flags.LocalConfDir
-	t.ca, err = util.NewCA("ETCD", filepath.Join(confDir, "etcd-ca.crt"), filepath.Join(confDir, "etcd-ca.key"))
-	if err != nil {
-		return maskAny(err)
+	if willInit {
+		t.initialClusterToken = uniuri.New()
+		log.Info().Msg("Creating ETCD CA")
+		var err error
+		confDir := flags.LocalConfDir
+		t.ca, err = util.NewCA("ETCD", filepath.Join(confDir, "etcd-ca.crt"), filepath.Join(confDir, "etcd-ca.key"))
+		if err != nil {
+			return maskAny(err)
+		}
 	}
 	return nil
 }
 
-// SetupMachine configures the machine to run ETCD.
-func (t *etcdService) SetupMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+// InitMachine configures the machine to run ETCD.
+func (t *etcdService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup ETCD on this host?
