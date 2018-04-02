@@ -23,6 +23,7 @@ import (
 	"github.com/pulcy/helix/service/etcd"
 	"github.com/pulcy/helix/service/kubernetes/apiserver"
 	"github.com/pulcy/helix/service/kubernetes/ca"
+	"github.com/pulcy/helix/service/kubernetes/cni"
 	"github.com/pulcy/helix/service/kubernetes/controllermanager"
 	"github.com/pulcy/helix/service/kubernetes/controlplane"
 	"github.com/pulcy/helix/service/kubernetes/coredns"
@@ -46,8 +47,9 @@ var (
 	resetFlags = service.ServiceFlags{}
 
 	// Create services to setup
-	boostrapService = []service.Service{
+	boostrapServices = []service.Service{
 		// The order of entries is relevant!
+		cni.NewService(),
 		hyperkube.NewService(),
 		ca.NewService(),
 		kubelet.NewService(),
@@ -63,7 +65,8 @@ var (
 		flannel.NewService(),
 		coredns.NewService(),
 	}
-	services = k8sServices // append(bootstrapServices, k8sServices...)
+	//	services = k8sServices // append(bootstrapServices, k8sServices...)
+	services = append(boostrapServices, k8sServices...)
 )
 
 func init() {

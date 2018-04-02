@@ -18,7 +18,7 @@ const (
 	kubeletServiceTemplate = `[Unit]
 Description=Kubernetes Kubelet Server
 Requires=docker.service network-online.target
-After=hyperkube.service docker.service network-online.target
+After=hyperkube.service cni-installer.service docker.service network-online.target
 
 [Service]
 ExecStartPre=/bin/mkdir -p /opt/log/pods
