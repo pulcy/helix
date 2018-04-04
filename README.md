@@ -3,6 +3,9 @@
 Helix uses SSH connections to nodes to be to bootstrap a highly available
 Kubernetes cluster on them.
 
+Helix supports nodes using different architectures.
+So far, it supports `arm` and `amd64`.
+
 It will bootstrap:
 
 - A multi-node ETCD cluster
