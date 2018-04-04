@@ -16,6 +16,7 @@ package etcd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,10 +67,20 @@ func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.Se
 	log := deps.Logger
 	t.isExisting = 0
 	if willInit {
-		t.initialClusterToken = uniuri.New()
-		log.Info().Msg("Creating ETCD CA")
-		var err error
 		confDir := flags.LocalConfDir
+		initialClusterTokenPath := filepath.Join(confDir, "etcd-initial-token")
+		raw, err := ioutil.ReadFile(initialClusterTokenPath)
+		if err == nil {
+			t.initialClusterToken = strings.TrimSpace(string(raw))
+		} else if !os.IsNotExist(err) {
+			return maskAny(err)
+		} else {
+			t.initialClusterToken = uniuri.New()
+			if err := ioutil.WriteFile(initialClusterTokenPath, []byte(t.initialClusterToken), 0600); err != nil {
+				return maskAny(err)
+			}
+		}
+		log.Info().Msg("Creating ETCD CA")
 		t.ca, err = util.NewCA("ETCD", filepath.Join(confDir, "etcd-ca.crt"), filepath.Join(confDir, "etcd-ca.key"))
 		if err != nil {
 			return maskAny(err)
