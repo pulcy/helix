@@ -15,26 +15,74 @@
 package service
 
 import (
+	"fmt"
+	"net"
+	"strings"
+	"sync"
+
 	"github.com/rs/zerolog"
 )
 
 // ControlPlane configuration
 type ControlPlane struct {
-	Members []string // Hostnames / IP address of all nodes that form the control plane.
-	nodes   []*Node
+	APIServer string   // DNS name of API server
+	Members   []string // Hostnames / IP address of all nodes that form the control plane.
 }
 
 // setupDefaults fills given flags with default value
-func (flags *ControlPlane) setupDefaults(log zerolog.Logger) error {
-	nodes, err := CreateNodes(flags.Members, true)
-	if err != nil {
-		return maskAny(err)
+func (flags *ControlPlane) setupDefaults(log zerolog.Logger, isSetup bool) error {
+	if len(flags.Members) == 0 && flags.APIServer == "" && isSetup {
+		return maskAny(fmt.Errorf("No control-plane members specified"))
 	}
-	flags.nodes = nodes
 	return nil
 }
 
-// GetAPIServerAddress returns the IP Address of the apiserver.
-func (flags *ControlPlane) GetAPIServerAddress() string {
-	return flags.nodes[0].Address
+// setupDefaults fills given flags with default value
+func (flags *ControlPlane) createNodes(log zerolog.Logger) ([]*Node, error) {
+	if len(flags.Members) > 0 {
+		nodes, err := CreateNodes(flags.Members, true)
+		if err != nil {
+			return nil, maskAny(err)
+		}
+		return nodes, nil
+	}
+	if flags.APIServer != "" {
+		// Resolve IP address of APIServer to fetch control plane members
+		addrs, err := net.LookupHost(flags.APIServer)
+		if err != nil {
+			return nil, maskAny(err)
+		}
+		nodes := make([]*Node, len(addrs))
+		errors := make(chan error, len(addrs))
+		defer close(errors)
+		wg := sync.WaitGroup{}
+		for i, addr := range addrs {
+			wg.Add(1)
+			go func(i int, addr string) {
+				defer wg.Done()
+				names, err := net.LookupAddr(addr)
+				if err != nil {
+					errors <- maskAny(err)
+				} else if len(names) == 0 {
+					errors <- maskAny(fmt.Errorf("No names found for address %s", addr))
+				} else {
+					nameParts := strings.Split(names[0], ".")
+					nodes[i] = &Node{
+						Name:           nameParts[0],
+						Address:        addr,
+						IsControlPlane: true,
+					}
+					log.Info().Msgf("Found control-plane member %s with address %s", nodes[i].Name, nodes[i].Address)
+				}
+			}(i, addr)
+		}
+		wg.Wait()
+		select {
+		case err := <-errors:
+			return nil, maskAny(err)
+		default:
+			return nodes, nil
+		}
+	}
+	return nil, nil
 }

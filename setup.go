@@ -77,19 +77,19 @@ func init() {
 	f := cmdInit.Flags()
 	// General
 	f.StringVarP(&initFlags.LocalConfDir, "conf-dir", "c", "", "Local directory containing cluster configuration")
-	f.BoolVar(&initFlags.DryRun, "dry-run", true, "If set, no changes will be made")
+	f.BoolVar(&initFlags.DryRun, "dry-run", false, "If set, no changes will be made")
 	f.StringSliceVarP(&initFlags.Members, "members", "m", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
 	f.StringVar(&initFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
 	// Control plane
+	f.StringVar(&initFlags.ControlPlane.APIServer, "apiserver", "", "DNS name of apiserver")
 	f.StringSliceVar(&initFlags.ControlPlane.Members, "control-plane-members", nil, "IP addresses (or hostnames) of control-plane members")
 	// Kubernetes
-	f.StringVar(&initFlags.Kubernetes.APIDNSName, "k8s-api-dns-name", defaultKubernetesAPIDNSName(), "Alternate name of the Kubernetes API server")
 	f.StringVar(&initFlags.Kubernetes.Metadata, "k8s-metadata", "", "Metadata list for kubelet")
 
 	// cmdReset
 	f = cmdReset.Flags()
 	// General
-	f.BoolVar(&resetFlags.DryRun, "dry-run", true, "If set, no changes will be made")
+	f.BoolVar(&resetFlags.DryRun, "dry-run", false, "If set, no changes will be made")
 	f.StringSliceVar(&resetFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
 	f.StringVar(&resetFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
 
@@ -100,13 +100,12 @@ func init() {
 func runInit(cmd *cobra.Command, args []string) {
 	showVersion(cmd, args)
 
-	if err := initFlags.SetupDefaults(cliLog); err != nil {
+	if err := initFlags.SetupDefaults(cliLog, true); err != nil {
 		Exitf("SetupDefaults failed: %#v\n", err)
 	}
 
 	assertArgIsSet(initFlags.LocalConfDir, "--conf-dir")
 	assertArgIsSet(strings.Join(initFlags.Members, ","), "--members")
-	assertArgIsSet(strings.Join(initFlags.ControlPlane.Members, ","), "--control-plane-members")
 
 	deps := service.ServiceDependencies{
 		Logger: cliLog,
@@ -122,7 +121,7 @@ func runInit(cmd *cobra.Command, args []string) {
 func runReset(cmd *cobra.Command, args []string) {
 	showVersion(cmd, args)
 
-	if err := resetFlags.SetupDefaults(cliLog); err != nil {
+	if err := resetFlags.SetupDefaults(cliLog, false); err != nil {
 		Exitf("SetupDefaults failed: %#v\n", err)
 	}
 

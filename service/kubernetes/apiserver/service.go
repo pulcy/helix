@@ -52,13 +52,13 @@ func (t *apiserverService) Name() string {
 	return "kube-apiserver"
 }
 
-func (t *apiserverService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *apiserverService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	t.Component.Name = "apiserver"
 	return nil
 }
 
 // InitMachine configures the machine to run apiserver.
-func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup apiserver on this host?
@@ -67,7 +67,7 @@ func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient,
 		return nil
 	}
 
-	cfg, err := t.createConfig(node, client, deps, flags)
+	cfg, err := t.createConfig(node, client, sctx, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -85,6 +85,9 @@ func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient,
 		"kubernetes.default.svc",
 		"kubernetes.default",
 		"kubernetes",
+	}
+	if flags.ControlPlane.APIServer != "" {
+		altNames = append(altNames, flags.ControlPlane.APIServer)
 	}
 	log.Info().Strs("alt-names", altNames).Msg("apiserver.crt/key")
 	if err := t.Component.UploadCertificates("kubernetes", "Kubernetes API Server", client, deps, altNames...); err != nil {
@@ -127,10 +130,10 @@ func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient,
 }
 
 // ResetMachine removes kube-apiserver from the machine.
-func (t *apiserverService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *apiserverService) ResetMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
-	cfg, err := t.createConfig(node, client, deps, flags)
+	cfg, err := t.createConfig(node, client, sctx, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -188,7 +191,7 @@ type config struct {
 	ServiceAccountCertFile string
 }
 
-func (t *apiserverService) createConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
+func (t *apiserverService) createConfig(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	certDir := t.Component.CertDir()
 	result := config{
 		Image:                  flags.Images.HyperKubeImage(node.Architecture),
@@ -196,7 +199,7 @@ func (t *apiserverService) createConfig(node service.Node, client util.SSHClient
 		ServiceClusterIPRange:  flags.Kubernetes.ServiceClusterIPRange,
 		ClusterDomain:          flags.Kubernetes.ClusterDomain,
 		PkiDir:                 t.Component.CertDir(),
-		EtcdEndpoints:          flags.Etcd.CreateClientEndpoints(flags.ControlPlane),
+		EtcdEndpoints:          flags.Etcd.CreateClientEndpoints(sctx),
 		EtcdCertFile:           filepath.Join(etcd.CertsDir, etcd.ClientCertFileName),
 		EtcdKeyFile:            filepath.Join(etcd.CertsDir, etcd.ClientKeyFileName),
 		EtcdCAFile:             filepath.Join(etcd.CertsDir, etcd.ClientCAFileName),

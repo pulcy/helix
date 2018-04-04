@@ -45,15 +45,15 @@ func (t *cpService) Name() string {
 	return "control-plane"
 }
 
-func (t *cpService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *cpService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	return nil
 }
 
 // Init waits for the control plane to become responsive.
-func (t *cpService) Init(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *cpService) Init(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger
 
-	client, err := service.NewKubernetesClient(deps, flags)
+	client, err := service.NewKubernetesClient(sctx, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}

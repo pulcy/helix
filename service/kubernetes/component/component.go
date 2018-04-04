@@ -86,7 +86,7 @@ func (c Component) KubeConfigPath() string {
 
 // CreateKubeConfig renders and uploads a kubeconfig file for this
 // component on the machine indicated by the given client.
-func (c Component) CreateKubeConfig(commonName, orgName string, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (c Component) CreateKubeConfig(commonName, orgName string, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	cert, key, err := deps.KubernetesCA.CreateServerCertificate(commonName, orgName, client)
 	if err != nil {
 		return maskAny(err)
@@ -99,7 +99,7 @@ func (c Component) CreateKubeConfig(commonName, orgName string, client util.SSHC
 		ClientCertData string
 		ClientKeyData  string
 	}{
-		Server:         fmt.Sprintf("https://%s:6443", flags.ControlPlane.GetAPIServerAddress()),
+		Server:         fmt.Sprintf("https://%s:6443", sctx.GetAPIServer()),
 		ContextName:    c.Name,
 		UserName:       c.Name,
 		CAData:         base64.StdEncoding.EncodeToString([]byte(deps.KubernetesCA.Cert())),

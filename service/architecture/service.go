@@ -39,12 +39,12 @@ func (t *archService) Name() string {
 	return "architecture"
 }
 
-func (t *archService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *archService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	return nil
 }
 
 // InitNode detects the architecture of the node.
-func (t *archService) InitNode(node *service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *archService) InitNode(node *service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	if node.Architecture == "" {

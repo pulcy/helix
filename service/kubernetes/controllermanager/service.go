@@ -49,13 +49,13 @@ func (t *controllermanagerService) Name() string {
 	return "kube-controller-manager"
 }
 
-func (t *controllermanagerService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *controllermanagerService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	t.Component.Name = "controller-manager"
 	return nil
 }
 
 // InitMachine configures the machine to run kube-controller-manager.
-func (t *controllermanagerService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *controllermanagerService) InitMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup scheduler on this host?
@@ -70,7 +70,7 @@ func (t *controllermanagerService) InitMachine(node service.Node, client util.SS
 	}
 
 	// Create & Upload kubeconfig
-	if err := t.Component.CreateKubeConfig("system:kube-controller-manager", "Kubernetes", client, deps, flags); err != nil {
+	if err := t.Component.CreateKubeConfig("system:kube-controller-manager", "Kubernetes", client, sctx, deps, flags); err != nil {
 		return maskAny(err)
 	}
 
@@ -84,7 +84,7 @@ func (t *controllermanagerService) InitMachine(node service.Node, client util.SS
 }
 
 // ResetMachine removes kube-controller-manager from the machine.
-func (t *controllermanagerService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *controllermanagerService) ResetMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Create manifest

@@ -16,8 +16,6 @@ package service
 
 import (
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/ericchiang/k8s"
 	"github.com/rs/zerolog"
@@ -31,7 +29,6 @@ type Kubernetes struct {
 	ClusterDNS            string   // IP address of DNS server
 	ClusterDomain         string   // Name of culster domain
 	FeatureGates          []string // List of activated feature gates
-	APIDNSName            string
 	Metadata              string
 }
 
@@ -60,26 +57,11 @@ func (flags *Kubernetes) setupDefaults(log zerolog.Logger) error {
 	if flags.ClusterDomain == "" {
 		flags.ClusterDomain = defaultClusterDomain
 	}
-	if flags.APIDNSName == "" {
-		hostname, err := os.Hostname()
-		if err != nil {
-			return maskAny(err)
-		}
-		parts := strings.Split(hostname, "-")
-		if len(parts) == 1 {
-			parts = strings.Split(hostname, ".")
-		}
-		if len(parts) > 1 {
-			flags.APIDNSName = strings.Join(parts[1:], ".")
-		} else {
-			flags.APIDNSName = hostname
-		}
-	}
 	return nil
 }
 
 // NewKubernetesClient creates a client from the outside to the k8s cluster
-func NewKubernetesClient(deps ServiceDependencies, flags ServiceFlags) (*k8s.Client, error) {
+func NewKubernetesClient(sctx *ServiceContext, deps ServiceDependencies, flags ServiceFlags) (*k8s.Client, error) {
 	cert, key, err := deps.KubernetesCA.CreateServerCertificate("kubernetes-admin", "system:masters", nil)
 	if err != nil {
 		return nil, maskAny(err)
@@ -89,7 +71,7 @@ func NewKubernetesClient(deps ServiceDependencies, flags ServiceFlags) (*k8s.Cli
 			k8s.NamedCluster{
 				Name: "k8s",
 				Cluster: k8s.Cluster{
-					Server: fmt.Sprintf("https://%s:6443", flags.ControlPlane.nodes[0].Address),
+					Server: fmt.Sprintf("https://%s:6443", sctx.GetAPIServer()),
 					CertificateAuthorityData: []byte(deps.KubernetesCA.Cert()),
 				},
 			},

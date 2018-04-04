@@ -44,14 +44,14 @@ func (t *flannelService) Name() string {
 	return "flannel"
 }
 
-func (t *flannelService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *flannelService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	return nil
 }
 
-func (t *flannelService) Init(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *flannelService) Init(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	ctx := context.Background()
 	log := deps.Logger
-	client, err := service.NewKubernetesClient(deps, flags)
+	client, err := service.NewKubernetesClient(sctx, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -150,7 +150,7 @@ func (t *flannelService) Init(deps service.ServiceDependencies, flags service.Se
 	}
 
 	// Create flannel daemonset
-	for _, arch := range flags.AllArchitectures() {
+	for _, arch := range sctx.AllArchitectures() {
 		ds := &appsv1.DaemonSet{
 			Metadata: &metav1.ObjectMeta{
 				Name:      k8s.String("kube-flannel-ds-" + arch),

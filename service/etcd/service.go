@@ -63,7 +63,7 @@ func (t *etcdService) Name() string {
 	return "etcd"
 }
 
-func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *etcdService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	log := deps.Logger
 	t.isExisting = 0
 	if willInit {
@@ -90,7 +90,7 @@ func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.Se
 }
 
 // InitNode looks for an existing ETCD data
-func (t *etcdService) InitNode(node *service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *etcdService) InitNode(node *service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup ETCD on this host?
@@ -113,7 +113,7 @@ func (t *etcdService) InitNode(node *service.Node, client util.SSHClient, deps s
 }
 
 // InitMachine configures the machine to run ETCD.
-func (t *etcdService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *etcdService) InitMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup ETCD on this host?
@@ -122,7 +122,7 @@ func (t *etcdService) InitMachine(node service.Node, client util.SSHClient, deps
 		return nil
 	}
 
-	cfg, err := t.createEtcdConfig(node, client, deps, flags)
+	cfg, err := t.createEtcdConfig(node, client, sctx, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -169,10 +169,10 @@ func (t *etcdService) InitMachine(node service.Node, client util.SSHClient, deps
 }
 
 // ResetMachine removes ETCD from the machine.
-func (t *etcdService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *etcdService) ResetMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
-	cfg, err := t.createEtcdConfig(node, client, deps, flags)
+	cfg, err := t.createEtcdConfig(node, client, sctx, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -227,13 +227,13 @@ type etcdConfig struct {
 	PeerCAFile          string // Path of --peer-trusted-ca-file
 }
 
-func (t *etcdService) createEtcdConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (etcdConfig, error) {
+func (t *etcdService) createEtcdConfig(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) (etcdConfig, error) {
 	result := etcdConfig{
 		Image:               flags.Images.EtcdImage(node.Architecture),
 		PeerName:            node.Name,
 		PodName:             "etcd-" + node.Name,
 		ClusterState:        "new",
-		InitialCluster:      flags.Etcd.CreateInitialCluster(flags.ControlPlane),
+		InitialCluster:      flags.Etcd.CreateInitialCluster(sctx),
 		InitialClusterToken: t.initialClusterToken,
 		CertificatesDir:     CertsDir,
 		DataDir:             dataDir,

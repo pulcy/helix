@@ -49,13 +49,13 @@ func (t *schedulerService) Name() string {
 	return "kube-scheduler"
 }
 
-func (t *schedulerService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *schedulerService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	t.Component.Name = "scheduler"
 	return nil
 }
 
 // InitMachine configures the machine to run kube-scheduler.
-func (t *schedulerService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *schedulerService) InitMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Setup scheduler on this host?
@@ -70,7 +70,7 @@ func (t *schedulerService) InitMachine(node service.Node, client util.SSHClient,
 	}
 
 	// Create & Upload kubeconfig
-	if err := t.Component.CreateKubeConfig("system:kube-scheduler", "Kubernetes", client, deps, flags); err != nil {
+	if err := t.Component.CreateKubeConfig("system:kube-scheduler", "Kubernetes", client, sctx, deps, flags); err != nil {
 		return maskAny(err)
 	}
 
@@ -84,7 +84,7 @@ func (t *schedulerService) InitMachine(node service.Node, client util.SSHClient,
 }
 
 // ResetMachine removes kube-scheduler from the machine.
-func (t *schedulerService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *schedulerService) ResetMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	if err := client.RemoveFile(deps.Logger, manifestPath); err != nil {
 		return maskAny(err)
 	}

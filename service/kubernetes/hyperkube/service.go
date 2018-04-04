@@ -45,12 +45,12 @@ func (t *hyperkubeService) Name() string {
 	return ServiceName
 }
 
-func (t *hyperkubeService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *hyperkubeService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	return nil
 }
 
 // InitMachine configures the machine to run download hyperkube.
-func (t *hyperkubeService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *hyperkubeService) InitMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
@@ -78,7 +78,7 @@ func (t *hyperkubeService) InitMachine(node service.Node, client util.SSHClient,
 }
 
 // ResetMachine removes hyperkube from the machine.
-func (t *hyperkubeService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *hyperkubeService) ResetMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {

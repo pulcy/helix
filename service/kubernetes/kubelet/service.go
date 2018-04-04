@@ -49,14 +49,14 @@ func (t *kubeletService) Name() string {
 	return "kubelet"
 }
 
-func (t *kubeletService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *kubeletService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	t.Component.Name = t.Name()
 	t.bootstrap.Name = "bootstrap-kubelet"
 	return nil
 }
 
 // InitMachine configures the machine to run kubelet.
-func (t *kubeletService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *kubeletService) InitMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
@@ -70,13 +70,13 @@ func (t *kubeletService) InitMachine(node service.Node, client util.SSHClient, d
 
 	// Create & Upload bootstrap kubeconfig
 	cn := "system:node:" + strings.ToLower(node.Name)
-	if err := t.bootstrap.CreateKubeConfig(cn, "system:nodes", client, deps, flags); err != nil {
+	if err := t.bootstrap.CreateKubeConfig(cn, "system:nodes", client, sctx, deps, flags); err != nil {
 		return maskAny(err)
 	}
 
 	// Create & Upload kubeconfig (if control plan)
 	if node.IsControlPlane || true {
-		if err := t.CreateKubeConfig(cn, "system:nodes", client, deps, flags); err != nil {
+		if err := t.CreateKubeConfig(cn, "system:nodes", client, sctx, deps, flags); err != nil {
 			return maskAny(err)
 		}
 	}
@@ -102,7 +102,7 @@ func (t *kubeletService) InitMachine(node service.Node, client util.SSHClient, d
 }
 
 // ResetMachine removes kubelet from the machine.
-func (t *kubeletService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *kubeletService) ResetMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Stop service

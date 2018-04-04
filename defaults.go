@@ -23,10 +23,6 @@ func defaultEtcdSecureClients() bool {
 	return boolFromEnv("GLUON_ETCD_SECURE_CLIENTS", false)
 }
 
-func defaultKubernetesAPIDNSName() string {
-	return os.Getenv("GLUON_K8S_API_DNS_NAME")
-}
-
 func boolFromEnv(key string, defaultValue bool) bool {
 	x := os.Getenv(key)
 	if x == "" {

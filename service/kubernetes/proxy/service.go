@@ -45,14 +45,14 @@ func (t *proxyService) Name() string {
 	return "kube-proxy"
 }
 
-func (t *proxyService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *proxyService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	return nil
 }
 
-func (t *proxyService) Init(deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *proxyService) Init(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	ctx := context.Background()
 	log := deps.Logger
-	client, err := service.NewKubernetesClient(deps, flags)
+	client, err := service.NewKubernetesClient(sctx, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -94,7 +94,7 @@ func (t *proxyService) Init(deps service.ServiceDependencies, flags service.Serv
 	kubeConfigOpts := struct {
 		MasterEndpoint string
 	}{
-		MasterEndpoint: fmt.Sprintf("https://%s:6443", flags.ControlPlane.GetAPIServerAddress()),
+		MasterEndpoint: fmt.Sprintf("https://%s:6443", sctx.GetAPIServer()),
 	}
 	kubeconfig, err := util.RenderToString(log, kubeConfigTemplate, kubeConfigOpts)
 	if err != nil {
@@ -119,7 +119,7 @@ func (t *proxyService) Init(deps service.ServiceDependencies, flags service.Serv
 	}
 
 	// Create kube-proxy daemon-set
-	for _, arch := range flags.AllArchitectures() {
+	for _, arch := range sctx.AllArchitectures() {
 		ds := &appsv1.DaemonSet{
 			Metadata: &metav1.ObjectMeta{
 				Name:      k8s.String("kube-proxy-" + arch),

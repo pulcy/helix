@@ -47,13 +47,13 @@ func (t *caService) Name() string {
 	return "ca"
 }
 
-func (t *caService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
+func (t *caService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	t.Component.Name = "admin"
 	return nil
 }
 
 // InitMachine configures the machine to upload certificates.
-func (t *caService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *caService) InitMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Upload ca.crt
@@ -76,7 +76,7 @@ func (t *caService) InitMachine(node service.Node, client util.SSHClient, deps s
 		}
 
 		// Create admin.conf
-		if err := t.Component.CreateKubeConfig("kubernetes-admin", "system:masters", client, deps, flags); err != nil {
+		if err := t.Component.CreateKubeConfig("kubernetes-admin", "system:masters", client, sctx, deps, flags); err != nil {
 			return maskAny(err)
 		}
 	}
@@ -85,7 +85,7 @@ func (t *caService) InitMachine(node service.Node, client util.SSHClient, deps s
 }
 
 // ResetMachine removes CA certificates from the machine.
-func (t *caService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+func (t *caService) ResetMachine(node service.Node, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
 
 	// Remove admin.conf
