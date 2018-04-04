@@ -75,8 +75,8 @@ func init() {
 	// General
 	f.StringVarP(&initFlags.LocalConfDir, "conf-dir", "c", "", "Local directory containing cluster configuration")
 	f.BoolVar(&initFlags.DryRun, "dry-run", true, "If set, no changes will be made")
-	f.StringSliceVar(&initFlags.Members, "members", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
-	f.StringVar(&initFlags.Architecture, "arch", "amd64", "Architecture of the machines")
+	f.StringSliceVarP(&initFlags.Members, "members", "m", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
+	f.StringVarP(&initFlags.Architecture, "architecture", "a", "amd64", "Architecture of the machines")
 	f.StringVar(&initFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
 	// Control plane
 	f.StringSliceVar(&initFlags.ControlPlane.Members, "control-plane-members", nil, "IP addresses (or hostnames) of control-plane members")

@@ -120,7 +120,7 @@ func (t *cniService) createConfig(client util.SSHClient, deps service.ServiceDep
 	result := config{
 		PluginsTgzPath: pluginsTGZPath,
 		PluginsURL:     fmt.Sprintf(pluginsURLTemplate, flags.Architecture),
-		CniBinDir:      "/opt/bin/cni",
+		CniBinDir:      "/opt/cni/bin",
 	}
 
 	return result, nil

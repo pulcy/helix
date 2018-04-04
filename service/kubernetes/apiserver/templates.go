@@ -37,13 +37,12 @@ spec:
     - --authorization-mode=Node,RBAC
     - --client-ca-file={{ .ClientCAFile }}
     - --enable-bootstrap-token-auth=true
+    - --endpoint-reconciler-type=lease
     - --etcd-cafile={{ .EtcdCAFile }}
     - --etcd-certfile={{ .EtcdCertFile }}
     - --etcd-keyfile={{ .EtcdKeyFile }}
     - --etcd-servers={{ .EtcdEndpoints }}
     - --feature-gates={{ .FeatureGates }}
-    - --insecure-bind-address=127.0.0.1
-    - --insecure-port=0
     - --kubelet-certificate-authority={{ .KubeletCAFile }}
     - --kubelet-client-certificate={{ .KubeletCertFile }}
     - --kubelet-client-key={{ .KubeletKeyFile }}
@@ -78,8 +77,8 @@ spec:
         path: /healthz
         port: 6443
         scheme: HTTPS
-      initialDelaySeconds: 15
-      timeoutSeconds: 15
+      initialDelaySeconds: 60
+      timeoutSeconds: 30
     name: kube-apiserver
     resources:
       requests:
