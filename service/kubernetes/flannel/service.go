@@ -150,121 +150,126 @@ func (t *flannelService) Init(deps service.ServiceDependencies, flags service.Se
 	}
 
 	// Create flannel daemonset
-	ds := &appsv1.DaemonSet{
-		Metadata: &metav1.ObjectMeta{
-			Name:      k8s.String("kube-flannel-ds"),
-			Namespace: k8s.String("kube-system"),
-			Labels: map[string]string{
-				"tier": "node",
-				"app":  "flannel",
-			},
-		},
-		Spec: &appsv1.DaemonSetSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
+	for _, arch := range flags.AllArchitectures() {
+		ds := &appsv1.DaemonSet{
+			Metadata: &metav1.ObjectMeta{
+				Name:      k8s.String("kube-flannel-ds-" + arch),
+				Namespace: k8s.String("kube-system"),
+				Labels: map[string]string{
 					"tier": "node",
 					"app":  "flannel",
+					"beta.kubernetes.io/arch": arch,
 				},
 			},
-			Template: &corev1.PodTemplateSpec{
-				Metadata: &metav1.ObjectMeta{
-					Labels: map[string]string{
+			Spec: &appsv1.DaemonSetSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
 						"tier": "node",
 						"app":  "flannel",
+						"beta.kubernetes.io/arch": arch,
 					},
 				},
-				Spec: &corev1.PodSpec{
-					HostNetwork: k8s.Bool(true),
-					NodeSelector: map[string]string{
-						"beta.kubernetes.io/arch": flags.Architecture,
-					},
-					Tolerations: []*corev1.Toleration{
-						&corev1.Toleration{
-							Key:      k8s.String("node-role.kubernetes.io/master"),
-							Operator: k8s.String("Exists"),
-							Effect:   k8s.String("NoSchedule"),
+				Template: &corev1.PodTemplateSpec{
+					Metadata: &metav1.ObjectMeta{
+						Labels: map[string]string{
+							"tier": "node",
+							"app":  "flannel",
+							"beta.kubernetes.io/arch": arch,
 						},
 					},
-					ServiceAccountName: k8s.String("flannel"),
-					InitContainers: []*corev1.Container{
-						&corev1.Container{
-							Name:    k8s.String("install-cni"),
-							Image:   k8s.String(flags.Images.Flannel),
-							Command: []string{"cp"},
-							Args: []string{
-								"-f",
-								"/etc/kube-flannel/cni-conf.json",
-								"/etc/cni/net.d/10-flannel.conf",
+					Spec: &corev1.PodSpec{
+						HostNetwork: k8s.Bool(true),
+						NodeSelector: map[string]string{
+							"beta.kubernetes.io/arch": arch,
+						},
+						Tolerations: []*corev1.Toleration{
+							&corev1.Toleration{
+								Key:      k8s.String("node-role.kubernetes.io/master"),
+								Operator: k8s.String("Exists"),
+								Effect:   k8s.String("NoSchedule"),
 							},
-							VolumeMounts: []*corev1.VolumeMount{
-								&corev1.VolumeMount{
-									MountPath: k8s.String("/etc/cni/net.d"),
-									Name:      k8s.String("cni"),
+						},
+						ServiceAccountName: k8s.String("flannel"),
+						InitContainers: []*corev1.Container{
+							&corev1.Container{
+								Name:    k8s.String("install-cni"),
+								Image:   k8s.String(flags.Images.FlannelImage(arch)),
+								Command: []string{"cp"},
+								Args: []string{
+									"-f",
+									"/etc/kube-flannel/cni-conf.json",
+									"/etc/cni/net.d/10-flannel.conf",
 								},
-								&corev1.VolumeMount{
-									MountPath: k8s.String("/etc/kube-flannel/"),
-									Name:      k8s.String("flannel-cfg"),
+								VolumeMounts: []*corev1.VolumeMount{
+									&corev1.VolumeMount{
+										MountPath: k8s.String("/etc/cni/net.d"),
+										Name:      k8s.String("cni"),
+									},
+									&corev1.VolumeMount{
+										MountPath: k8s.String("/etc/kube-flannel/"),
+										Name:      k8s.String("flannel-cfg"),
+									},
 								},
 							},
 						},
-					},
-					Containers: []*corev1.Container{
-						&corev1.Container{
-							Name:  k8s.String("kube-flannel"),
-							Image: k8s.String(flags.Images.Flannel),
-							Command: []string{
-								"/opt/bin/flanneld",
-								"--ip-masq",
-								"--kube-subnet-mgr",
-							},
-							Env: []*corev1.EnvVar{
-								&corev1.EnvVar{
-									Name:      k8s.String("POD_NAME"),
-									ValueFrom: util.EnvVarSourceFieldRef("metadata.name"),
+						Containers: []*corev1.Container{
+							&corev1.Container{
+								Name:  k8s.String("kube-flannel"),
+								Image: k8s.String(flags.Images.FlannelImage(arch)),
+								Command: []string{
+									"/opt/bin/flanneld",
+									"--ip-masq",
+									"--kube-subnet-mgr",
 								},
-								&corev1.EnvVar{
-									Name:      k8s.String("POD_NAMESPACE"),
-									ValueFrom: util.EnvVarSourceFieldRef("metadata.namespace"),
+								Env: []*corev1.EnvVar{
+									&corev1.EnvVar{
+										Name:      k8s.String("POD_NAME"),
+										ValueFrom: util.EnvVarSourceFieldRef("metadata.name"),
+									},
+									&corev1.EnvVar{
+										Name:      k8s.String("POD_NAMESPACE"),
+										ValueFrom: util.EnvVarSourceFieldRef("metadata.namespace"),
+									},
 								},
-							},
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: k8s.Bool(true),
-							},
-							VolumeMounts: []*corev1.VolumeMount{
-								&corev1.VolumeMount{
-									MountPath: k8s.String("/run"),
-									Name:      k8s.String("run"),
+								SecurityContext: &corev1.SecurityContext{
+									Privileged: k8s.Bool(true),
 								},
-								&corev1.VolumeMount{
-									MountPath: k8s.String("/etc/kube-flannel/"),
-									Name:      k8s.String("flannel-cfg"),
-								},
-							},
-						},
-					},
-					Volumes: []*corev1.Volume{
-						&corev1.Volume{
-							Name: k8s.String("run"),
-							VolumeSource: &corev1.VolumeSource{
-								HostPath: &corev1.HostPathVolumeSource{
-									Path: k8s.String("/run"),
+								VolumeMounts: []*corev1.VolumeMount{
+									&corev1.VolumeMount{
+										MountPath: k8s.String("/run"),
+										Name:      k8s.String("run"),
+									},
+									&corev1.VolumeMount{
+										MountPath: k8s.String("/etc/kube-flannel/"),
+										Name:      k8s.String("flannel-cfg"),
+									},
 								},
 							},
 						},
-						&corev1.Volume{
-							Name: k8s.String("cni"),
-							VolumeSource: &corev1.VolumeSource{
-								HostPath: &corev1.HostPathVolumeSource{
-									Path: k8s.String("/etc/cni/net.d"),
+						Volumes: []*corev1.Volume{
+							&corev1.Volume{
+								Name: k8s.String("run"),
+								VolumeSource: &corev1.VolumeSource{
+									HostPath: &corev1.HostPathVolumeSource{
+										Path: k8s.String("/run"),
+									},
 								},
 							},
-						},
-						&corev1.Volume{
-							Name: k8s.String("flannel-cfg"),
-							VolumeSource: &corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: &corev1.LocalObjectReference{
-										Name: k8s.String("flannel"),
+							&corev1.Volume{
+								Name: k8s.String("cni"),
+								VolumeSource: &corev1.VolumeSource{
+									HostPath: &corev1.HostPathVolumeSource{
+										Path: k8s.String("/etc/cni/net.d"),
+									},
+								},
+							},
+							&corev1.Volume{
+								Name: k8s.String("flannel-cfg"),
+								VolumeSource: &corev1.VolumeSource{
+									ConfigMap: &corev1.ConfigMapVolumeSource{
+										LocalObjectReference: &corev1.LocalObjectReference{
+											Name: k8s.String("flannel"),
+										},
 									},
 								},
 							},
@@ -272,10 +277,10 @@ func (t *flannelService) Init(deps service.ServiceDependencies, flags service.Se
 					},
 				},
 			},
-		},
-	}
-	if err := util.CreateOrUpdate(ctx, client, ds); err != nil {
-		return maskAny(err)
+		}
+		if err := util.CreateOrUpdate(ctx, client, ds); err != nil {
+			return maskAny(err)
+		}
 	}
 
 	return nil

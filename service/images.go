@@ -22,32 +22,55 @@ import (
 
 // Images holds docker image names
 type Images struct {
-	CoreDNS   string
-	Etcd      string
-	Flannel   string
-	HyperKube string
+	CoreDNSVersion string
+	EtcdVersion    string
+	FlannelVersion string
+
+	k8sVersion string
 }
 
 const (
-	etcdImageTemplate      = "gcr.io/google-containers/etcd-%s:3.2.17"
-	flannelImageTemplate   = "quay.io/coreos/flannel:v0.9.1-%s"
+	defaultEtcdVersion    = "3.2.17"
+	defaultFlannelVersion = "v0.9.1"
+	defaultCoreDNSVersion = "1.1.1"
+
+	etcdImageTemplate      = "gcr.io/google-containers/etcd-%s:%s"
+	flannelImageTemplate   = "quay.io/coreos/flannel:%s-%s"
 	hyperKubeImageTemplate = "gcr.io/google-containers/hyperkube-%s:%s"
-	defaultCoreDNSImage    = "coredns/coredns:1.1.1"
+	coreDNSImageTemplate   = "coredns/coredns:%s"
 )
 
 // setupDefaults fills given flags with default value
-func (flags *Images) setupDefaults(log zerolog.Logger, architecture, k8sVersion string) error {
-	if flags.CoreDNS == "" {
-		flags.CoreDNS = defaultCoreDNSImage
+func (flags *Images) setupDefaults(log zerolog.Logger, k8sVersion string) error {
+	flags.k8sVersion = k8sVersion
+	if flags.CoreDNSVersion == "" {
+		flags.CoreDNSVersion = defaultCoreDNSVersion
 	}
-	if flags.Etcd == "" {
-		flags.Etcd = fmt.Sprintf(etcdImageTemplate, architecture)
+	if flags.EtcdVersion == "" {
+		flags.EtcdVersion = defaultEtcdVersion
 	}
-	if flags.Flannel == "" {
-		flags.Flannel = fmt.Sprintf(flannelImageTemplate, architecture)
-	}
-	if flags.HyperKube == "" {
-		flags.HyperKube = fmt.Sprintf(hyperKubeImageTemplate, architecture, k8sVersion)
+	if flags.FlannelVersion == "" {
+		flags.FlannelVersion = defaultFlannelVersion
 	}
 	return nil
+}
+
+// CoreDNSImage returns the CoreDNS image name.
+func (flags Images) CoreDNSImage() string {
+	return fmt.Sprintf(coreDNSImageTemplate, flags.CoreDNSVersion)
+}
+
+// EtcdImage returns the ETCD image name.
+func (flags Images) EtcdImage(architecture string) string {
+	return fmt.Sprintf(etcdImageTemplate, architecture, flags.EtcdVersion)
+}
+
+// FlannelImage returns the flannel image name.
+func (flags Images) FlannelImage(architecture string) string {
+	return fmt.Sprintf(flannelImageTemplate, flags.FlannelVersion, architecture)
+}
+
+// HyperKubeImage returns the hyperkube image name.
+func (flags Images) HyperKubeImage(architecture string) string {
+	return fmt.Sprintf(hyperKubeImageTemplate, architecture, flags.k8sVersion)
 }

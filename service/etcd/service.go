@@ -190,7 +190,7 @@ type etcdConfig struct {
 
 func (t *etcdService) createEtcdConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (etcdConfig, error) {
 	result := etcdConfig{
-		Image:               flags.Images.Etcd,
+		Image:               flags.Images.EtcdImage(node.Architecture),
 		PeerName:            node.Name,
 		PodName:             "etcd-" + node.Name,
 		ClusterState:        flags.Etcd.ClusterState,

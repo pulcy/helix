@@ -114,7 +114,7 @@ type config struct {
 
 func (t *controllermanagerService) createConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	result := config{
-		Image:                  flags.Images.HyperKube,
+		Image:                  flags.Images.HyperKubeImage(node.Architecture),
 		PodName:                "kube-controller-manager-" + node.Name,
 		PkiDir:                 t.Component.CertDir(),
 		FeatureGates:           strings.Join(flags.Kubernetes.FeatureGates, ","),

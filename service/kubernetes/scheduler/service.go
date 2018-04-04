@@ -103,7 +103,7 @@ type config struct {
 
 func (t *schedulerService) createConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	result := config{
-		Image:          flags.Images.HyperKube,
+		Image:          flags.Images.HyperKubeImage(node.Architecture),
 		PodName:        "kube-scheduler-" + node.Name,
 		FeatureGates:   strings.Join(flags.Kubernetes.FeatureGates, ","),
 		KubeConfigPath: t.KubeConfigPath(),

@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/pulcy/helix/service"
+	"github.com/pulcy/helix/service/architecture"
 	"github.com/pulcy/helix/service/etcd"
 	"github.com/pulcy/helix/service/kubernetes/apiserver"
 	"github.com/pulcy/helix/service/kubernetes/ca"
@@ -49,6 +50,7 @@ var (
 	// Create services to setup
 	boostrapServices = []service.Service{
 		// The order of entries is relevant!
+		architecture.NewService(),
 		cni.NewService(),
 		hyperkube.NewService(),
 		ca.NewService(),
@@ -60,6 +62,7 @@ var (
 	}
 	k8sServices = []service.Service{
 		// The order of entries is relevant!
+		architecture.NewService(),
 		controlplane.NewService(),
 		proxy.NewService(),
 		flannel.NewService(),
@@ -76,7 +79,6 @@ func init() {
 	f.StringVarP(&initFlags.LocalConfDir, "conf-dir", "c", "", "Local directory containing cluster configuration")
 	f.BoolVar(&initFlags.DryRun, "dry-run", true, "If set, no changes will be made")
 	f.StringSliceVarP(&initFlags.Members, "members", "m", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
-	f.StringVarP(&initFlags.Architecture, "architecture", "a", "amd64", "Architecture of the machines")
 	f.StringVar(&initFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
 	// Control plane
 	f.StringSliceVar(&initFlags.ControlPlane.Members, "control-plane-members", nil, "IP addresses (or hostnames) of control-plane members")

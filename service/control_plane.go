@@ -21,7 +21,7 @@ import (
 // ControlPlane configuration
 type ControlPlane struct {
 	Members []string // Hostnames / IP address of all nodes that form the control plane.
-	nodes   []Node
+	nodes   []*Node
 }
 
 // setupDefaults fills given flags with default value

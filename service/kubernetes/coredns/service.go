@@ -175,7 +175,7 @@ func (t *dnsService) Init(deps service.ServiceDependencies, flags service.Servic
 					Containers: []*corev1.Container{
 						&corev1.Container{
 							Name:  k8s.String("coredns"),
-							Image: k8s.String(flags.Images.CoreDNS),
+							Image: k8s.String(flags.Images.CoreDNSImage()),
 							Args:  []string{"-conf", "/etc/coredns/Corefile"},
 							VolumeMounts: []*corev1.VolumeMount{
 								&corev1.VolumeMount{

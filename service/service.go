@@ -15,6 +15,7 @@
 package service
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -46,6 +47,11 @@ type ServiceMachines interface {
 	ResetMachine(node Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
 }
 
+type ServiceNodeInitializer interface {
+	Service
+	InitNode(node *Node, client util.SSHClient, deps ServiceDependencies, flags ServiceFlags) error
+}
+
 type ServiceDependencies struct {
 	Logger         zerolog.Logger
 	KubernetesCA   util.CA
@@ -60,11 +66,10 @@ type ServiceFlags struct {
 	DryRun       bool
 	LocalConfDir string   // Path of local directory containing configuration (like ca certificates) files.
 	Members      []string // IP/hostname of all machines (no need to include control-plane members)
-	nodes        []Node
+	nodes        []*Node
 	SSH          struct {
 		User string
 	}
-	Architecture string
 
 	// Docker images
 	Images Images
@@ -86,9 +91,6 @@ func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
 		return maskAny(err)
 	}
 	flags.nodes = nodes
-	if flags.Architecture == "" {
-		flags.Architecture = "amd64"
-	}
 	if err := flags.ControlPlane.setupDefaults(log); err != nil {
 		return maskAny(err)
 	}
@@ -98,26 +100,43 @@ func (flags *ServiceFlags) SetupDefaults(log zerolog.Logger) error {
 	if err := flags.Kubernetes.setupDefaults(log); err != nil {
 		return maskAny(err)
 	}
-	if err := flags.Images.setupDefaults(log, flags.Architecture, flags.Kubernetes.Version); err != nil {
+	if err := flags.Images.setupDefaults(log, flags.Kubernetes.Version); err != nil {
 		return maskAny(err)
 	}
 	return nil
 }
 
 // AllNodes returns a list of all members, including control plane members.
-func (flags ServiceFlags) AllNodes() []Node {
-	m := make(map[string]Node)
+func (flags ServiceFlags) AllNodes() []*Node {
+	m := make(map[string]*Node)
 	for _, x := range flags.nodes {
 		m[x.Name] = x
 	}
 	for _, x := range flags.ControlPlane.nodes {
 		m[x.Name] = x
 	}
-	result := make([]Node, 0, len(m))
+	result := make([]*Node, 0, len(m))
 	for _, v := range m {
 		result = append(result, v)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
+
+// AllArchitectures returns a list of all architectures being used.
+func (flags ServiceFlags) AllArchitectures() []string {
+	m := make(map[string]string)
+	for _, x := range flags.nodes {
+		if x.Architecture == "" {
+			panic(fmt.Sprintf("Architecture of node %s is empty", x.Name))
+		}
+		m[x.Architecture] = x.Architecture
+	}
+	result := make([]string, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	sort.Strings(result)
 	return result
 }
 
@@ -168,6 +187,27 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 				return maskAny(err)
 			}
 		}
+		if sNode, ok := s.(ServiceNodeInitializer); ok {
+			wg := sync.WaitGroup{}
+			errors := make(chan error, len(clients))
+			defer close(errors)
+			for i, client := range clients {
+				wg.Add(1)
+				go func(client util.SSHClient, node *Node) {
+					defer wg.Done()
+					if err := sNode.InitNode(node, client, deps, flags); err != nil {
+						errors <- maskAny(err)
+					}
+				}(client, nodes[i])
+			}
+			wg.Wait()
+			select {
+			case err := <-errors:
+				return maskAny(err)
+			default:
+				// Continue
+			}
+		}
 		if sMachine, ok := s.(ServiceMachines); ok {
 			wg := sync.WaitGroup{}
 			errors := make(chan error, len(clients))
@@ -180,7 +220,7 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 					if err := sMachine.InitMachine(node, client, deps, flags); err != nil {
 						errors <- maskAny(err)
 					}
-				}(client, nodes[i])
+				}(client, *nodes[i])
 			}
 			wg.Wait()
 			select {
@@ -218,6 +258,27 @@ func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) err
 
 	// Reset all services on all machines
 	for _, s := range services {
+		if sNode, ok := s.(ServiceNodeInitializer); ok {
+			wg := sync.WaitGroup{}
+			errors := make(chan error, len(clients))
+			defer close(errors)
+			for i, client := range clients {
+				wg.Add(1)
+				go func(client util.SSHClient, node *Node) {
+					defer wg.Done()
+					if err := sNode.InitNode(node, client, deps, flags); err != nil {
+						errors <- maskAny(err)
+					}
+				}(client, nodes[i])
+			}
+			wg.Wait()
+			select {
+			case err := <-errors:
+				return maskAny(err)
+			default:
+				// Continue
+			}
+		}
 		if sMachine, ok := s.(ServiceMachines); ok {
 			wg := sync.WaitGroup{}
 			errors := make(chan error, len(clients))
@@ -230,7 +291,7 @@ func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) err
 					if err := sMachine.ResetMachine(node, client, deps, flags); err != nil {
 						errors <- maskAny(err)
 					}
-				}(client, nodes[i])
+				}(client, *nodes[i])
 			}
 			wg.Wait()
 			select {
@@ -251,7 +312,7 @@ func Reset(deps ServiceDependencies, flags ServiceFlags, services []Service) err
 }
 
 // dialMachines opens connections to all clients.
-func dialMachines(log zerolog.Logger, flags ServiceFlags) ([]util.SSHClient, []Node, error) {
+func dialMachines(log zerolog.Logger, flags ServiceFlags) ([]util.SSHClient, []*Node, error) {
 	allNodes := flags.AllNodes()
 	clients := make([]util.SSHClient, len(allNodes))
 	wg := sync.WaitGroup{}
@@ -259,7 +320,7 @@ func dialMachines(log zerolog.Logger, flags ServiceFlags) ([]util.SSHClient, []N
 	defer close(errors)
 	for i, n := range allNodes {
 		wg.Add(1)
-		go func(i int, n Node) {
+		go func(i int, n *Node) {
 			defer wg.Done()
 			log.Info().Msgf("Dialing %s (%s)", n.Name, n.Address)
 			client, err := util.DialSSH(flags.SSH.User, n.Name, n.Address, flags.DryRun)

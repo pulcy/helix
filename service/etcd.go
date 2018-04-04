@@ -55,7 +55,7 @@ func (flags Etcd) createEndpoints(cp ControlPlane, port int, prefixBuilder func(
 	for i, n := range cp.nodes {
 		prefix := ""
 		if prefixBuilder != nil {
-			prefix = prefixBuilder(n)
+			prefix = prefixBuilder(*n)
 		}
 		endpoints[i] = fmt.Sprintf("%shttps://%s:%d", prefix, n.Address, port)
 	}

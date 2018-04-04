@@ -26,15 +26,16 @@ type Node struct {
 	Name           string // Hostname
 	Address        string // IP address
 	IsControlPlane bool
+	Architecture   string
 }
 
 // CreateNodes inspects all names/addresses in the given list and resolves
 // everything that is not already an IP address.
-func CreateNodes(nameList []string, isControlPlane bool) ([]Node, error) {
+func CreateNodes(nameList []string, isControlPlane bool) ([]*Node, error) {
 	if len(nameList) == 0 {
 		return nil, nil
 	}
-	result := make([]Node, len(nameList))
+	result := make([]*Node, len(nameList))
 	wg := sync.WaitGroup{}
 	errorsChan := make(chan error, len(nameList))
 	defer close(errorsChan)
@@ -44,7 +45,7 @@ func CreateNodes(nameList []string, isControlPlane bool) ([]Node, error) {
 			defer wg.Done()
 			if net.ParseIP(n) != nil {
 				// Input is an IP address
-				result[i] = Node{
+				result[i] = &Node{
 					Name:           "node-" + n,
 					Address:        n,
 					IsControlPlane: isControlPlane,
@@ -57,7 +58,7 @@ func CreateNodes(nameList []string, isControlPlane bool) ([]Node, error) {
 				} else if len(addrs) == 0 {
 					errorsChan <- maskAny(errors.Wrapf(err, "Found not addresses for '%s'", n))
 				} else {
-					result[i] = Node{
+					result[i] = &Node{
 						Name:           n,
 						Address:        addrs[0],
 						IsControlPlane: isControlPlane,

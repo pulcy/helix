@@ -119,100 +119,108 @@ func (t *proxyService) Init(deps service.ServiceDependencies, flags service.Serv
 	}
 
 	// Create kube-proxy daemon-set
-	ds := &appsv1.DaemonSet{
-		Metadata: &metav1.ObjectMeta{
-			Name:      k8s.String("kube-proxy"),
-			Namespace: k8s.String("kube-system"),
-			Labels: map[string]string{
-				"k8s-app": "kube-proxy",
-			},
-		},
-		Spec: &appsv1.DaemonSetSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"k8s-app": "kube-proxy",
+	for _, arch := range flags.AllArchitectures() {
+		ds := &appsv1.DaemonSet{
+			Metadata: &metav1.ObjectMeta{
+				Name:      k8s.String("kube-proxy-" + arch),
+				Namespace: k8s.String("kube-system"),
+				Labels: map[string]string{
+					"k8s-app":                 "kube-proxy",
+					"beta.kubernetes.io/arch": arch,
 				},
 			},
-			UpdateStrategy: &appsv1.DaemonSetUpdateStrategy{
-				Type: k8s.String("RollingUpdate"),
-			},
-			Template: &corev1.PodTemplateSpec{
-				Metadata: &metav1.ObjectMeta{
-					Labels: map[string]string{
-						"k8s-app": "kube-proxy",
+			Spec: &appsv1.DaemonSetSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"k8s-app":                 "kube-proxy",
+						"beta.kubernetes.io/arch": arch,
 					},
 				},
-				Spec: &corev1.PodSpec{
-					Containers: []*corev1.Container{
-						&corev1.Container{
-							Name:  k8s.String("kube-proxy"),
-							Image: k8s.String(flags.Images.HyperKube),
-							Command: []string{
-								"/hyperkube",
-								"kube-proxy",
-								"--kubeconfig=/var/lib/kube-proxy/kubeconfig.conf",
-								"--proxy-mode=iptables",
-							}, // TODO
-							SecurityContext: &corev1.SecurityContext{
-								Privileged: k8s.Bool(true),
-							},
-							VolumeMounts: []*corev1.VolumeMount{
-								&corev1.VolumeMount{
-									MountPath: k8s.String("/var/lib/kube-proxy"),
-									Name:      k8s.String("kube-proxy"),
-								},
-								&corev1.VolumeMount{
-									MountPath: k8s.String("/run/xtables.lock"),
-									Name:      k8s.String("xtables-lock"),
-									ReadOnly:  k8s.Bool(true),
-								},
-								&corev1.VolumeMount{
-									MountPath: k8s.String("/lib/modules"),
-									Name:      k8s.String("lib-modules"),
-								},
-							},
+				UpdateStrategy: &appsv1.DaemonSetUpdateStrategy{
+					Type: k8s.String("RollingUpdate"),
+				},
+				Template: &corev1.PodTemplateSpec{
+					Metadata: &metav1.ObjectMeta{
+						Labels: map[string]string{
+							"k8s-app":                 "kube-proxy",
+							"beta.kubernetes.io/arch": arch,
 						},
 					},
-					HostNetwork:        k8s.Bool(true),
-					ServiceAccountName: k8s.String("kube-proxy"),
-					Tolerations:        []*corev1.Toleration{
-					// TODO
-					},
-					Volumes: []*corev1.Volume{
-						&corev1.Volume{
-							Name: k8s.String("kube-proxy"),
-							VolumeSource: &corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: &corev1.LocalObjectReference{
-										Name: k8s.String("kube-proxy"),
+					Spec: &corev1.PodSpec{
+						NodeSelector: map[string]string{
+							"beta.kubernetes.io/arch": arch,
+						},
+						Containers: []*corev1.Container{
+							&corev1.Container{
+								Name:  k8s.String("kube-proxy"),
+								Image: k8s.String(flags.Images.HyperKubeImage(arch)),
+								Command: []string{
+									"/hyperkube",
+									"kube-proxy",
+									"--kubeconfig=/var/lib/kube-proxy/kubeconfig.conf",
+									"--proxy-mode=iptables",
+								}, // TODO
+								SecurityContext: &corev1.SecurityContext{
+									Privileged: k8s.Bool(true),
+								},
+								VolumeMounts: []*corev1.VolumeMount{
+									&corev1.VolumeMount{
+										MountPath: k8s.String("/var/lib/kube-proxy"),
+										Name:      k8s.String("kube-proxy"),
+									},
+									&corev1.VolumeMount{
+										MountPath: k8s.String("/run/xtables.lock"),
+										Name:      k8s.String("xtables-lock"),
+										ReadOnly:  k8s.Bool(true),
+									},
+									&corev1.VolumeMount{
+										MountPath: k8s.String("/lib/modules"),
+										Name:      k8s.String("lib-modules"),
 									},
 								},
 							},
 						},
-						&corev1.Volume{
-							Name: k8s.String("xtables-lock"),
-							VolumeSource: &corev1.VolumeSource{
-								HostPath: &corev1.HostPathVolumeSource{
-									Path: k8s.String("/run/xtables.lock"),
-									Type: k8s.String("FileOrCreate"),
+						HostNetwork:        k8s.Bool(true),
+						ServiceAccountName: k8s.String("kube-proxy"),
+						Tolerations:        []*corev1.Toleration{
+						// TODO
+						},
+						Volumes: []*corev1.Volume{
+							&corev1.Volume{
+								Name: k8s.String("kube-proxy"),
+								VolumeSource: &corev1.VolumeSource{
+									ConfigMap: &corev1.ConfigMapVolumeSource{
+										LocalObjectReference: &corev1.LocalObjectReference{
+											Name: k8s.String("kube-proxy"),
+										},
+									},
 								},
 							},
-						},
-						&corev1.Volume{
-							Name: k8s.String("lib-modules"),
-							VolumeSource: &corev1.VolumeSource{
-								HostPath: &corev1.HostPathVolumeSource{
-									Path: k8s.String("/lib/modules"),
+							&corev1.Volume{
+								Name: k8s.String("xtables-lock"),
+								VolumeSource: &corev1.VolumeSource{
+									HostPath: &corev1.HostPathVolumeSource{
+										Path: k8s.String("/run/xtables.lock"),
+										Type: k8s.String("FileOrCreate"),
+									},
+								},
+							},
+							&corev1.Volume{
+								Name: k8s.String("lib-modules"),
+								VolumeSource: &corev1.VolumeSource{
+									HostPath: &corev1.HostPathVolumeSource{
+										Path: k8s.String("/lib/modules"),
+									},
 								},
 							},
 						},
 					},
 				},
 			},
-		},
-	}
-	if err := util.CreateOrUpdate(ctx, client, ds); err != nil {
-		return maskAny(err)
+		}
+		if err := util.CreateOrUpdate(ctx, client, ds); err != nil {
+			return maskAny(err)
+		}
 	}
 	return nil
 }

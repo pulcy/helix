@@ -52,7 +52,7 @@ func (t *hyperkubeService) Prepare(deps service.ServiceDependencies, flags servi
 // InitMachine configures the machine to run download hyperkube.
 func (t *hyperkubeService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
-	cfg, err := t.createConfig(client, deps, flags)
+	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -80,7 +80,7 @@ func (t *hyperkubeService) InitMachine(node service.Node, client util.SSHClient,
 // ResetMachine removes hyperkube from the machine.
 func (t *hyperkubeService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
-	cfg, err := t.createConfig(client, deps, flags)
+	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -116,9 +116,9 @@ type config struct {
 	KubeCtlPath       string
 }
 
-func (t *hyperkubeService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
+func (t *hyperkubeService) createConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	result := config{
-		Image:             flags.Images.HyperKube,
+		Image:             flags.Images.HyperKubeImage(node.Architecture),
 		KubernetesVersion: flags.Kubernetes.Version,
 		HyperKubePath:     "/usr/local/bin/hyperkube-" + flags.Kubernetes.Version,
 		KubeCtlPath:       "/usr/local/bin/kubectl",

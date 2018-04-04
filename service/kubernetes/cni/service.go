@@ -56,7 +56,7 @@ func (t *cniService) Prepare(deps service.ServiceDependencies, flags service.Ser
 // InitMachine configures the machine to run download hyperkube.
 func (t *cniService) InitMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
-	cfg, err := t.createConfig(client, deps, flags)
+	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -84,7 +84,7 @@ func (t *cniService) InitMachine(node service.Node, client util.SSHClient, deps 
 // ResetMachine removes hyperkube from the machine.
 func (t *cniService) ResetMachine(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
 	log := deps.Logger.With().Str("host", node.Name).Logger()
-	cfg, err := t.createConfig(client, deps, flags)
+	cfg, err := t.createConfig(node, client, deps, flags)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -116,10 +116,10 @@ type config struct {
 	CniBinDir      string
 }
 
-func (t *cniService) createConfig(client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
+func (t *cniService) createConfig(node service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) (config, error) {
 	result := config{
 		PluginsTgzPath: pluginsTGZPath,
-		PluginsURL:     fmt.Sprintf(pluginsURLTemplate, flags.Architecture),
+		PluginsURL:     fmt.Sprintf(pluginsURLTemplate, node.Architecture),
 		CniBinDir:      "/opt/cni/bin",
 	}
 
