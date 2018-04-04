@@ -82,8 +82,6 @@ func init() {
 	f.StringVar(&initFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
 	// Control plane
 	f.StringSliceVar(&initFlags.ControlPlane.Members, "control-plane-members", nil, "IP addresses (or hostnames) of control-plane members")
-	// ETCD
-	f.StringVar(&initFlags.Etcd.ClusterState, "etcd-cluster-state", "", "State of the ETCD cluster new|existing")
 	// Kubernetes
 	f.StringVar(&initFlags.Kubernetes.APIDNSName, "k8s-api-dns-name", defaultKubernetesAPIDNSName(), "Alternate name of the Kubernetes API server")
 	f.StringVar(&initFlags.Kubernetes.Metadata, "k8s-metadata", "", "Metadata list for kubelet")

@@ -23,7 +23,6 @@ import (
 
 // Etcd holds ETCD configuration settings
 type Etcd struct {
-	ClusterState string // Current state of the ETCD cluster
 }
 
 const (

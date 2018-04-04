@@ -15,8 +15,11 @@
 package etcd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 
 	"github.com/dchest/uniuri"
 	"github.com/pkg/errors"
@@ -52,6 +55,7 @@ func NewService() service.Service {
 type etcdService struct {
 	initialClusterToken string
 	ca                  util.CA
+	isExisting          int32
 }
 
 func (t *etcdService) Name() string {
@@ -60,6 +64,7 @@ func (t *etcdService) Name() string {
 
 func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
 	log := deps.Logger
+	t.isExisting = 0
 	if willInit {
 		t.initialClusterToken = uniuri.New()
 		log.Info().Msg("Creating ETCD CA")
@@ -70,6 +75,29 @@ func (t *etcdService) Prepare(deps service.ServiceDependencies, flags service.Se
 			return maskAny(err)
 		}
 	}
+	return nil
+}
+
+// InitNode looks for an existing ETCD data
+func (t *etcdService) InitNode(node *service.Node, client util.SSHClient, deps service.ServiceDependencies, flags service.ServiceFlags) error {
+	log := deps.Logger.With().Str("host", node.Name).Logger()
+
+	// Setup ETCD on this host?
+	if !node.IsControlPlane {
+		return nil
+	}
+
+	memberDir := filepath.Join(dataDir, "member")
+	result, err := client.Run(log, fmt.Sprintf("test -d %s || echo 'not'", memberDir), "", true)
+	if err != nil {
+		return maskAny(err)
+	}
+	result = strings.TrimSpace(result)
+	if result != "not" {
+		// member data dir exists
+		atomic.StoreInt32(&t.isExisting, 1)
+	}
+
 	return nil
 }
 
@@ -193,7 +221,7 @@ func (t *etcdService) createEtcdConfig(node service.Node, client util.SSHClient,
 		Image:               flags.Images.EtcdImage(node.Architecture),
 		PeerName:            node.Name,
 		PodName:             "etcd-" + node.Name,
-		ClusterState:        flags.Etcd.ClusterState,
+		ClusterState:        "new",
 		InitialCluster:      flags.Etcd.CreateInitialCluster(flags.ControlPlane),
 		InitialClusterToken: t.initialClusterToken,
 		CertificatesDir:     CertsDir,
@@ -205,8 +233,8 @@ func (t *etcdService) createEtcdConfig(node service.Node, client util.SSHClient,
 		PeerKeyFile:         filepath.Join(CertsDir, peerKeyFileName),
 		PeerCAFile:          filepath.Join(CertsDir, peerCAFileName),
 	}
-	if result.ClusterState == "" {
-		result.ClusterState = "new"
+	if t.isExisting != 0 {
+		result.ClusterState = "existing"
 	}
 
 	return result, nil
