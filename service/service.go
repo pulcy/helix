@@ -54,6 +54,7 @@ type ServiceNodeInitializer interface {
 
 type ServiceDependencies struct {
 	Logger         zerolog.Logger
+	EtcdCA         util.CA
 	KubernetesCA   util.CA
 	ServiceAccount struct {
 		Cert string
@@ -193,6 +194,12 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 	sctx := &ServiceContext{
 		flags: flags,
 		nodes: nodes,
+	}
+
+	// Create ETCD CA
+	deps.EtcdCA, err = util.NewCA("ETCD CA", filepath.Join(confDir, "etcd-ca.crt"), filepath.Join(confDir, "etcd-ca.key"))
+	if err != nil {
+		return maskAny(err)
 	}
 
 	// Create Kubernetes CA

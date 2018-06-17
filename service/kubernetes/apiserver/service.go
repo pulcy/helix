@@ -99,7 +99,7 @@ func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient,
 
 	// Create & Upload front proxy certificates
 	log.Info().Msgf("Uploading %s FrontProxy Certificates", t.Name())
-	proxyCert, proxyKey, err := deps.KubernetesCA.CreateServerCertificate("kubernetes", "Kubernetes Front Proxy", client)
+	proxyCert, proxyKey, err := deps.KubernetesCA.CreateTLSClientAuthCertificate("kubernetes", "Kubernetes Front Proxy", client)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -110,9 +110,22 @@ func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient,
 		return maskAny(err)
 	}
 
+	// Create & Upload apiserver-etcd client certificate
+	log.Info().Msg("Uploading apiserver-etcd-client Certificates")
+	etcdCert, etcdKey, err := deps.EtcdCA.CreateTLSClientAuthCertificate("kubernetes", "system:masters", client)
+	if err != nil {
+		return maskAny(err)
+	}
+	if err := client.UpdateFile(log, cfg.EtcdCertFile, []byte(etcdCert), certFileMode); err != nil {
+		return maskAny(err)
+	}
+	if err := client.UpdateFile(log, cfg.EtcdKeyFile, []byte(etcdKey), keyFileMode); err != nil {
+		return maskAny(err)
+	}
+
 	// Create & Upload apiserver-kubelet client certificate
 	log.Info().Msg("Uploading apiserver-kubelet-client Certificates")
-	kubeletCert, kubeletKey, err := deps.KubernetesCA.CreateServerCertificate("kubernetes", "system:masters", client)
+	kubeletCert, kubeletKey, err := deps.KubernetesCA.CreateTLSClientAuthCertificate("kubernetes", "system:masters", client)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -203,8 +216,8 @@ func (t *apiserverService) createConfig(node service.Node, client util.SSHClient
 		ClusterDomain:          flags.Kubernetes.ClusterDomain,
 		PkiDir:                 t.Component.CertDir(),
 		EtcdEndpoints:          flags.Etcd.CreateClientEndpoints(sctx),
-		EtcdCertFile:           filepath.Join(etcd.CertsDir, etcd.ClientCertFileName),
-		EtcdKeyFile:            filepath.Join(etcd.CertsDir, etcd.ClientKeyFileName),
+		EtcdCertFile:           filepath.Join(certDir, "apiserver-etcd-client.crt"),
+		EtcdKeyFile:            filepath.Join(certDir, "apiserver-etcd-client.key"),
 		EtcdCAFile:             filepath.Join(etcd.CertsDir, etcd.ClientCAFileName),
 		FeatureGates:           strings.Join(flags.Kubernetes.FeatureGates, ","),
 		APIServerCertFile:      t.CertPath(),

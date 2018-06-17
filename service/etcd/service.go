@@ -55,7 +55,6 @@ func NewService() service.Service {
 
 type etcdService struct {
 	initialClusterToken string
-	ca                  util.CA
 	isExisting          int32
 }
 
@@ -64,7 +63,6 @@ func (t *etcdService) Name() string {
 }
 
 func (t *etcdService) Prepare(sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags, willInit bool) error {
-	log := deps.Logger
 	t.isExisting = 0
 	if willInit {
 		confDir := flags.LocalConfDir
@@ -79,11 +77,6 @@ func (t *etcdService) Prepare(sctx *service.ServiceContext, deps service.Service
 			if err := ioutil.WriteFile(initialClusterTokenPath, []byte(t.initialClusterToken), 0600); err != nil {
 				return maskAny(err)
 			}
-		}
-		log.Info().Msg("Creating ETCD CA")
-		t.ca, err = util.NewCA("ETCD", filepath.Join(confDir, "etcd-ca.crt"), filepath.Join(confDir, "etcd-ca.key"))
-		if err != nil {
-			return maskAny(err)
 		}
 	}
 	return nil
@@ -129,11 +122,11 @@ func (t *etcdService) InitMachine(node service.Node, client util.SSHClient, sctx
 
 	// Create certificates
 	log.Info().Msg("Creating ETCD Server Certificates")
-	clientCert, clientKey, err := t.ca.CreateServerCertificate(node.Name, "helix", client)
+	clientCert, clientKey, err := deps.EtcdCA.CreateTLSServerCertificate(node.Name, "helix", client)
 	if err != nil {
 		return maskAny(err)
 	}
-	peerCert, peerKey, err := t.ca.CreateServerCertificate(node.Name, "helix", client)
+	peerCert, peerKey, err := deps.EtcdCA.CreateTLSServerCertificate(node.Name, "helix", client)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -146,7 +139,7 @@ func (t *etcdService) InitMachine(node service.Node, client util.SSHClient, sctx
 	if err := client.UpdateFile(log, cfg.ClientKeyFile, []byte(clientKey), keyFileMode); err != nil {
 		return maskAny(err)
 	}
-	if err := client.UpdateFile(log, cfg.ClientCAFile, []byte(t.ca.Cert()), certFileMode); err != nil {
+	if err := client.UpdateFile(log, cfg.ClientCAFile, []byte(deps.EtcdCA.Cert()), certFileMode); err != nil {
 		return maskAny(err)
 	}
 	if err := client.UpdateFile(log, cfg.PeerCertFile, []byte(peerCert), certFileMode); err != nil {
@@ -155,7 +148,7 @@ func (t *etcdService) InitMachine(node service.Node, client util.SSHClient, sctx
 	if err := client.UpdateFile(log, cfg.PeerKeyFile, []byte(peerKey), keyFileMode); err != nil {
 		return maskAny(err)
 	}
-	if err := client.UpdateFile(log, cfg.PeerCAFile, []byte(t.ca.Cert()), certFileMode); err != nil {
+	if err := client.UpdateFile(log, cfg.PeerCAFile, []byte(deps.EtcdCA.Cert()), certFileMode); err != nil {
 		return maskAny(err)
 	}
 
