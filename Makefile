@@ -54,6 +54,7 @@ update-vendor:
 		github.com/rs/zerolog \
 		github.com/spf13/cobra \
 		github.com/spf13/pflag \
+		gopkg.in/yaml.v2 \
 		golang.org/x/sync/errgroup \
 		golang.org/x/crypto/ssh
 
