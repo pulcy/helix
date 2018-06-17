@@ -60,7 +60,6 @@ update-vendor:
 $(CACHEVOL):
 	@docker volume create $(CACHEVOL)
 
-
 $(BIN): $(GOBUILDDIR) $(CACHEVOL) $(SOURCES)
 	docker run \
 		--rm \
