@@ -87,7 +87,7 @@ func (c Component) KubeConfigPath() string {
 // CreateKubeConfig renders and uploads a kubeconfig file for this
 // component on the machine indicated by the given client.
 func (c Component) CreateKubeConfig(commonName, orgName string, client util.SSHClient, sctx *service.ServiceContext, deps service.ServiceDependencies, flags service.ServiceFlags) error {
-	cert, key, err := deps.KubernetesCA.CreateServerCertificate(commonName, orgName, client)
+	cert, key, err := deps.KubernetesCA.CreateTLSClientAuthCertificate(commonName, orgName, client)
 	if err != nil {
 		return maskAny(err)
 	}
@@ -125,7 +125,7 @@ func (c Component) RemoveKubeConfig(client util.SSHClient, deps service.ServiceD
 func (c Component) UploadCertificates(commonName, orgName string, client util.SSHClient, deps service.ServiceDependencies, additionalHosts ...string) error {
 	log := deps.Logger
 	log.Info().Msgf("Creating %s TLS Certificates", c.Name)
-	cert, key, err := deps.KubernetesCA.CreateServerCertificate(commonName, orgName, client, additionalHosts...)
+	cert, key, err := deps.KubernetesCA.CreateTLSServerCertificate(commonName, orgName, client, additionalHosts...)
 	if err != nil {
 		return maskAny(err)
 	}
