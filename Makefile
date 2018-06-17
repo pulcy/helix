@@ -18,6 +18,7 @@ BIN := $(BINDIR)/$(PROJECT)
 
 GOPATH := $(GOBUILDDIR)
 GOVERSION := 1.10.0-alpine
+CACHEVOL := $(PROJECT)-gocache
 
 ifndef GOOS
 	GOOS := $(shell go env GOOS)
@@ -56,10 +57,16 @@ update-vendor:
 		golang.org/x/sync/errgroup \
 		golang.org/x/crypto/ssh
 
-$(BIN): $(GOBUILDDIR) $(SOURCES)
+$(CACHEVOL):
+	@docker volume create $(CACHEVOL)
+
+
+$(BIN): $(GOBUILDDIR) $(CACHEVOL) $(SOURCES)
 	docker run \
 		--rm \
 		-v $(ROOTDIR):/usr/code \
+		-v $(CACHEVOL):/usr/gocache \
+		-e GOCACHE=/usr/gocache \
 		-e GOPATH=/usr/code/.gobuild \
 		-e GOOS=$(GOOS) \
 		-e GOARCH=$(GOARCH) \

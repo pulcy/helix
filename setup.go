@@ -30,6 +30,7 @@ import (
 	"github.com/pulcy/helix/service/kubernetes/coredns"
 	"github.com/pulcy/helix/service/kubernetes/flannel"
 	"github.com/pulcy/helix/service/kubernetes/hyperkube"
+	"github.com/pulcy/helix/service/kubernetes/keepalived"
 	"github.com/pulcy/helix/service/kubernetes/kubelet"
 	"github.com/pulcy/helix/service/kubernetes/proxy"
 	"github.com/pulcy/helix/service/kubernetes/scheduler"
@@ -53,6 +54,7 @@ var (
 		architecture.NewService(),
 		cni.NewService(),
 		hyperkube.NewService(),
+		keepalived.NewService(),
 		ca.NewService(),
 		kubelet.NewService(),
 		etcd.NewService(),
@@ -81,7 +83,8 @@ func init() {
 	f.StringSliceVarP(&initFlags.Members, "members", "m", nil, "IP addresses (or hostnames) of normal machines (may include control-plane members)")
 	f.StringVar(&initFlags.SSH.User, "ssh-user", "pi", "SSH user on all machines")
 	// Control plane
-	f.StringVar(&initFlags.ControlPlane.APIServer, "apiserver", "", "DNS name of apiserver")
+	f.StringVar(&initFlags.ControlPlane.APIServerVirtualIP, "apiserver-virtual-ip", "", "Virtual IP address of apiserver")
+	f.StringVar(&initFlags.ControlPlane.APIServerDNSName, "apiserver-dns-name", "", "DNS name of apiserver")
 	f.StringSliceVar(&initFlags.ControlPlane.Members, "control-plane-members", nil, "IP addresses (or hostnames) of control-plane members")
 	// Kubernetes
 	f.StringVar(&initFlags.Kubernetes.Metadata, "k8s-metadata", "", "Metadata list for kubelet")

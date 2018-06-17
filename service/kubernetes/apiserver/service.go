@@ -86,8 +86,11 @@ func (t *apiserverService) InitMachine(node service.Node, client util.SSHClient,
 		"kubernetes.default",
 		"kubernetes",
 	}
-	if flags.ControlPlane.APIServer != "" {
-		altNames = append(altNames, flags.ControlPlane.APIServer)
+	if flags.ControlPlane.APIServerVirtualIP != "" {
+		altNames = append(altNames, flags.ControlPlane.APIServerVirtualIP)
+	}
+	if flags.ControlPlane.APIServerDNSName != "" {
+		altNames = append(altNames, flags.ControlPlane.APIServerDNSName)
 	}
 	log.Info().Strs("alt-names", altNames).Msg("apiserver.crt/key")
 	if err := t.Component.UploadCertificates("kubernetes", "Kubernetes API Server", client, deps, altNames...); err != nil {
