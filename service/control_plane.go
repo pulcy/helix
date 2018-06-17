@@ -25,13 +25,14 @@ import (
 
 // ControlPlane configuration
 type ControlPlane struct {
-	APIServer string   // DNS name of API server
-	Members   []string // Hostnames / IP address of all nodes that form the control plane.
+	APIServerVirtualIP string   // Virtual IP address of APIServer
+	APIServerDNSName   string   // DNS name of APIServer
+	Members            []string // Hostnames / IP address of all nodes that form the control plane.
 }
 
 // setupDefaults fills given flags with default value
 func (flags *ControlPlane) setupDefaults(log zerolog.Logger, isSetup bool) error {
-	if len(flags.Members) == 0 && flags.APIServer == "" && isSetup {
+	if len(flags.Members) == 0 && flags.APIServerVirtualIP == "" && flags.APIServerDNSName == "" && isSetup {
 		return maskAny(fmt.Errorf("No control-plane members specified"))
 	}
 	return nil
@@ -46,9 +47,9 @@ func (flags *ControlPlane) createNodes(log zerolog.Logger) ([]*Node, error) {
 		}
 		return nodes, nil
 	}
-	if flags.APIServer != "" {
+	if flags.APIServerVirtualIP == "" && flags.APIServerDNSName != "" {
 		// Resolve IP address of APIServer to fetch control plane members
-		addrs, err := net.LookupHost(flags.APIServer)
+		addrs, err := net.LookupHost(flags.APIServerDNSName)
 		if err != nil {
 			return nil, maskAny(err)
 		}

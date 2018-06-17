@@ -62,7 +62,7 @@ func (flags *Kubernetes) setupDefaults(log zerolog.Logger) error {
 
 // NewKubernetesClient creates a client from the outside to the k8s cluster
 func NewKubernetesClient(sctx *ServiceContext, deps ServiceDependencies, flags ServiceFlags) (*k8s.Client, error) {
-	cert, key, err := deps.KubernetesCA.CreateServerCertificate("kubernetes-admin", "system:masters", nil)
+	cert, key, err := deps.KubernetesCA.CreateTLSClientAuthCertificate("kubernetes-admin", "system:masters", nil)
 	if err != nil {
 		return nil, maskAny(err)
 	}

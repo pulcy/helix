@@ -126,9 +126,9 @@ func (ca *CA) Key() string {
 	return ca.caKey
 }
 
-// CreateServerCertificate creates a server certificates for the given client.
+// CreateTLSServerCertificate creates a server certificates for the given client.
 // Returns certificate, key, error.
-func (ca *CA) CreateServerCertificate(commonName, orgName string, client SSHClient, additionalHosts ...string) (string, string, error) {
+func (ca *CA) CreateTLSServerCertificate(commonName, orgName string, client SSHClient, additionalHosts ...string) (string, string, error) {
 	var hosts []string
 	if client != nil {
 		hosts = append(hosts, client.GetAddress(), client.GetHostName())
@@ -140,13 +140,40 @@ func (ca *CA) CreateServerCertificate(commonName, orgName string, client SSHClie
 			Organization:       []string{orgName},
 			OrganizationalUnit: []string{"Helix"},
 		},
-		Hosts: hosts,
-		IsCA:  false,
-		//IsClientAuth: false,
-		ValidFrom:   time.Now(),
-		ValidFor:    serverCertValidFor,
-		ECDSACurve:  "P256",
-		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		Hosts:        hosts,
+		IsCA:         false,
+		IsClientAuth: false,
+		ValidFrom:    time.Now(),
+		ValidFor:     serverCertValidFor,
+		ECDSACurve:   "P256",
+	}
+	cert, key, err := certificates.CreateCertificate(opts, &ca.ca)
+	if err != nil {
+		return "", "", maskAny(err)
+	}
+	return cert, key, nil
+}
+
+// CreateTLSClientAuthCertificate creates a TLS client authentication for the given client.
+// Returns certificate, key, error.
+func (ca *CA) CreateTLSClientAuthCertificate(commonName, orgName string, client SSHClient, additionalHosts ...string) (string, string, error) {
+	var hosts []string
+	if client != nil {
+		hosts = append(hosts, client.GetAddress(), client.GetHostName())
+	}
+	hosts = append(hosts, additionalHosts...)
+	opts := certificates.CreateCertificateOptions{
+		Subject: &pkix.Name{
+			CommonName:         commonName,
+			Organization:       []string{orgName},
+			OrganizationalUnit: []string{"Helix"},
+		},
+		Hosts:        hosts,
+		IsCA:         false,
+		IsClientAuth: true,
+		ValidFrom:    time.Now(),
+		ValidFor:     serverCertValidFor,
+		ECDSACurve:   "P256",
 	}
 	cert, key, err := certificates.CreateCertificate(opts, &ca.ca)
 	if err != nil {

@@ -54,6 +54,7 @@ type ServiceNodeInitializer interface {
 
 type ServiceDependencies struct {
 	Logger         zerolog.Logger
+	EtcdCA         util.CA
 	KubernetesCA   util.CA
 	ServiceAccount struct {
 		Cert string
@@ -118,6 +119,20 @@ func (flags *ServiceFlags) CreateNodes(log zerolog.Logger, isSetup bool) ([]*Nod
 	return mergeNodes(nodes, cpNodes), nil
 }
 
+// GetControlPlaneIndex returns the index of the given node in the control plan (0...)
+func (c *ServiceContext) GetControlPlaneIndex(n Node) int {
+	result := 0
+	for _, x := range c.nodes {
+		if x.IsControlPlane {
+			if n.Name == x.Name || n.Address == x.Address {
+				return result
+			}
+			result++
+		}
+	}
+	return -1
+}
+
 // mergeNodes returns a list of all nodes in a & b, last node wins.
 func mergeNodes(a, b []*Node) []*Node {
 	m := make(map[string]*Node)
@@ -137,8 +152,11 @@ func mergeNodes(a, b []*Node) []*Node {
 
 // GetAPIServer returns the hostname or IP Address of the apiserver.
 func (c *ServiceContext) GetAPIServer() string {
-	if c.flags.ControlPlane.APIServer != "" {
-		return c.flags.ControlPlane.APIServer
+	if c.flags.ControlPlane.APIServerVirtualIP != "" {
+		return c.flags.ControlPlane.APIServerVirtualIP
+	}
+	if c.flags.ControlPlane.APIServerDNSName != "" {
+		return c.flags.ControlPlane.APIServerDNSName
 	}
 	return c.nodes[0].Address
 }
@@ -176,6 +194,12 @@ func Run(deps ServiceDependencies, flags ServiceFlags, services []Service) error
 	sctx := &ServiceContext{
 		flags: flags,
 		nodes: nodes,
+	}
+
+	// Create ETCD CA
+	deps.EtcdCA, err = util.NewCA("ETCD CA", filepath.Join(confDir, "etcd-ca.crt"), filepath.Join(confDir, "etcd-ca.key"))
+	if err != nil {
+		return maskAny(err)
 	}
 
 	// Create Kubernetes CA
